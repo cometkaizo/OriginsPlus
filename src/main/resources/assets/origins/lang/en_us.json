@@ -1,0 +1,15 @@
+{
+  "key.categories.origins": "Origins",
+  "key.power": "Special Power",
+
+  "death.attack.touchingWater": "%1$s took a bath for too long",
+  "death.attack.drinkingWater": "%1$s died from hydration",
+  "death.attack.indirectTouchingWater": "%1$s was bathed by %2$s for too long",
+  "death.attack.scare": "%1$s was scared to death",
+  "death.attack.scare.player": "%1$s was scared to death",
+  "death.attack.dryout": "%1$s died from dehydration",
+  "death.attack.dryout.player": "%1$s died from dehydration",
+
+  "effect.origins.flight_weakness": "Flight Weakness",
+  "effect.origins.flight_strength": "Flight Strength"
+}

@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "package": "me.cometkaizo.origins.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "BlockDropMixin$MixedBlock",
+    "BlockDropMixin$MixedItemPredicate",
+    "BlockDropMixin$MixedMatchTool",
+    "ElytraMixin$MixedLivingEntity",
+    "ElytraMixin$MixedPlayerEntity",
+    "PlayerSpawnMixin$MixedPlayerList",
+    "WaterBreathingMixin$IsInWater",
+    "WaterBreathingMixin$IsInWaterTurtleShell"
+  ],
+  "client": [
+    "ElytraMixin$MixedCapeLayer",
+    "ElytraMixin$MixedClientPlayerEntity",
+    "ElytraMixin$MixedElytraLayer",
+    "ElytraMixin$MixedElytraModel",
+    "ElytraMixin$MixedPlayerModel",
+    "EntityReachMixin$MixedPlayerController",
+    "SkyColorMixin$MixedClientWorld"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "refmap": "origins.mixin-refmap.json"
+}
