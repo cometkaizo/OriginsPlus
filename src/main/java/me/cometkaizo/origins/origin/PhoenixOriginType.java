@@ -80,8 +80,7 @@ public class PhoenixOriginType extends AbstractOriginType {
 
 
     public enum Property {
-        RESPAWN_AT_DEATH,
-        SKY_COLOR_CHANGE_ON_DEATH
+        RESPAWN_AT_DEATH
     }
 
     public enum Cooldown implements TimeTracker.Cooldown {

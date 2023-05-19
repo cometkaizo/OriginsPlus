@@ -53,6 +53,11 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
     }
 
     @Override
+    public void onPlayerSensitiveEvent(Object event, Origin origin) {
+
+    }
+
+    @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
         return false;
     }

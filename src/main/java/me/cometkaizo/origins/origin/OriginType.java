@@ -18,6 +18,7 @@ public interface OriginType extends IForgeRegistryEntry<OriginType>, Serializabl
     boolean hasProperty(Property property);
     <T extends Property> List<T> getProperties(Class<T> propertyType);
     void onEvent(Object event, Origin origin);
+    void onPlayerSensitiveEvent(Object event, Origin origin);
     boolean hasMixinProperty(Object property, Origin origin);
     void performAction(Origin origin);
     void onFirstActivate(Origin origin);

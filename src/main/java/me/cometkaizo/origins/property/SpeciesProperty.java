@@ -3,10 +3,7 @@ package me.cometkaizo.origins.property;
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.TagUtils;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.IAngerable;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.*;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.util.math.AxisAlignedBB;
@@ -16,18 +13,17 @@ import net.minecraftforge.event.entity.living.LivingSetAttackTargetEvent;
 
 import javax.annotation.Nonnull;
 import java.util.List;
-import java.util.function.Predicate;
 
 public class SpeciesProperty extends EventInterceptProperty {
     public static final String NO_AGGRO_LIST_KEY = Main.MOD_ID + "_no_aggro";
     @Nonnull
-    private final Predicate<? super LivingEntity> speciesPredicate;
+    private final Rallier rallier;
     private final double rallyRadius;
     private final double rallyRadiusSqr;
 
-    protected SpeciesProperty(String name, @Nonnull Predicate<? super LivingEntity> speciesPredicate, double rallyRadius) {
+    protected SpeciesProperty(String name, @Nonnull Rallier rallier, double rallyRadius) {
         super(name);
-        this.speciesPredicate = speciesPredicate;
+        this.rallier = rallier;
         this.rallyRadius = rallyRadius;
         this.rallyRadiusSqr = rallyRadius * rallyRadius;
     }
@@ -43,13 +39,10 @@ public class SpeciesProperty extends EventInterceptProperty {
         if (event.isCanceled()) return;
 
         LivingEntity entity = event.getEntityLiving();
-        if (!(entity instanceof IAngerable)) return;
-        if (isSameSpecies(entity)) return;
-        IAngerable angerable = (IAngerable) entity;
-
         LivingEntity target = event.getTarget();
+
         if (origin.getPlayer().equals(target) || isOnNoAggroList(entity, target)) {
-            angerable.setAttackTarget(null);
+            rallier.setAttackTarget(entity, null);
         }
     }
 
@@ -72,26 +65,11 @@ public class SpeciesProperty extends EventInterceptProperty {
         if (!origin.getPlayer().equals(event.getSource().getTrueSource())) return;
 
         LivingEntity target = event.getEntityLiving();
-        if (!(target instanceof IAngerable)) return;
 
-        if (isSameSpecies(target)) {
-            IAngerable angerable = (IAngerable) target;
-            LivingEntity targetAttackTarget = angerable.getAttackTarget();
-            addToNoAggroList(target, targetAttackTarget);
+        if (rallier.isSameSpecies(target)) {
+            rallier.addToNoAggroList(target);
         } else {
             aggroNearbyEntities(origin.getPlayer(), target);
-        }
-    }
-
-    private boolean isSameSpecies(LivingEntity entity) {
-        return speciesPredicate.test(entity);
-    }
-
-    private static void addToNoAggroList(LivingEntity entity, LivingEntity attackTarget) {
-        if (attackTarget != null) {
-            int aggroId = attackTarget.getEntityId();
-            CompoundNBT data = entity.getPersistentData();
-            TagUtils.appendOrCreate(data, NO_AGGRO_LIST_KEY, aggroId);
         }
     }
 
@@ -99,27 +77,21 @@ public class SpeciesProperty extends EventInterceptProperty {
         World world = player.world;
 
         AxisAlignedBB affectedArea = player.getBoundingBox().grow(rallyRadius);
-        List<Entity> affectedEntities = world.getEntitiesWithinAABB(Entity.class, affectedArea);
+        List<Entity> ralliedEntities = world.getEntitiesWithinAABB(Entity.class, affectedArea, rallier::isSameSpecies);
 
-        for (Entity entity : affectedEntities) {
-            if (entity.getDistanceSq(player) > rallyRadiusSqr) return;
-            if (!(entity instanceof IAngerable)) return;
-
-            ((IAngerable) entity).setAttackTarget(target);
+        for (Entity entity : ralliedEntities) {
+            if (entity.getDistanceSq(player) > rallyRadiusSqr) continue;
+            rallier.setAttackTarget(entity, target);
         }
     }
 
     public static class Builder {
         private String name = "Species";
-        private Predicate<? super LivingEntity> speciesPredicate;
+        private Rallier rallier;
         private double rallyRadius = 0;
 
-        public Builder(Predicate<? super LivingEntity> speciesPredicate) {
-            setSpecies(speciesPredicate);
-        }
-
-        public Builder(EntityType<? extends IAngerable> entityType) {
-            setSpecies(entityType);
+        public Builder(Rallier rallier) {
+            setRallier(rallier);
         }
 
         public Builder() {
@@ -131,13 +103,18 @@ public class SpeciesProperty extends EventInterceptProperty {
             return this;
         }
 
-        public Builder setSpecies(Predicate<? super LivingEntity> speciesPredicate) {
-            this.speciesPredicate = speciesPredicate;
+        public Builder setRallier(Rallier rallier) {
+            this.rallier = rallier;
             return this;
         }
 
-        public Builder setSpecies(EntityType<? extends IAngerable> entityType) {
-            this.speciesPredicate = entity -> entity.getType().equals(entityType);
+        public Builder setAngerableSpecies(EntityType<? extends IAngerable> entityType) {
+            this.rallier = new AngerableRallier(entityType);
+            return this;
+        }
+
+        public Builder setMobSpecies(EntityType<? extends MobEntity> entityType) {
+            this.rallier = new MobRallier(entityType);
             return this;
         }
 
@@ -147,7 +124,81 @@ public class SpeciesProperty extends EventInterceptProperty {
         }
 
         public SpeciesProperty build() {
-            return new SpeciesProperty(name, speciesPredicate, rallyRadius);
+            return new SpeciesProperty(name, rallier, rallyRadius);
         }
     }
+
+
+    public interface Rallier {
+
+        boolean isSameSpecies(Entity entity);
+        void setAttackTarget(Entity entity, LivingEntity target);
+        void addToNoAggroList(LivingEntity entity);
+
+    }
+
+    public static class AngerableRallier implements Rallier {
+        private final EntityType<? extends IAngerable> type;
+
+        public AngerableRallier(EntityType<? extends IAngerable> type) {
+            this.type = type;
+        }
+
+        @Override
+        public boolean isSameSpecies(Entity rallier) {
+            return rallier.getType() == type;
+        }
+
+        @Override
+        public void setAttackTarget(Entity entity, LivingEntity target) {
+            if (entity instanceof IAngerable) {
+                ((IAngerable) entity).setAttackTarget(target);
+            }
+        }
+
+        @Override
+        public void addToNoAggroList(LivingEntity entity) {
+            if (entity instanceof IAngerable) {
+                LivingEntity attackTarget = ((IAngerable) entity).getAttackTarget();
+                if (attackTarget != null) {
+                    int aggroId = attackTarget.getEntityId();
+                    CompoundNBT data = entity.getPersistentData();
+                    TagUtils.appendOrCreate(data, NO_AGGRO_LIST_KEY, aggroId);
+                }
+            }
+        }
+    }
+
+    public static class MobRallier implements Rallier {
+        private final EntityType<? extends MobEntity> type;
+
+        public MobRallier(EntityType<? extends MobEntity> type) {
+            this.type = type;
+        }
+
+        @Override
+        public boolean isSameSpecies(Entity rallier) {
+            return rallier.getType() == type;
+        }
+
+        @Override
+        public void setAttackTarget(Entity entity, LivingEntity target) {
+            if (entity instanceof MobEntity) {
+                ((MobEntity) entity).setAttackTarget(target);
+            }
+        }
+
+        @Override
+        public void addToNoAggroList(LivingEntity entity) {
+            if (entity instanceof MobEntity) {
+                LivingEntity attackTarget = ((MobEntity) entity).getAttackTarget();
+                if (attackTarget != null) {
+                    int aggroId = attackTarget.getEntityId();
+                    CompoundNBT data = entity.getPersistentData();
+                    TagUtils.appendOrCreate(data, NO_AGGRO_LIST_KEY, aggroId);
+                }
+            }
+        }
+    }
+
 }

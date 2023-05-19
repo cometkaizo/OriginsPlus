@@ -18,6 +18,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.util.INBTSerializable;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -76,7 +77,14 @@ public class Origin implements INBTSerializable<INBT> {
         if (type != null) {
             tryOnFirstActivate();
             type.onEvent(event, this);
+            if (event instanceof EntityEvent && isAboutPlayer((EntityEvent) event)) {
+                type.onPlayerSensitiveEvent(event, this);
+            }
         }
+    }
+
+    private boolean isAboutPlayer(EntityEvent event) {
+        return player.equals(event.getEntity());
     }
 
     public boolean hasProperty(Object property) {

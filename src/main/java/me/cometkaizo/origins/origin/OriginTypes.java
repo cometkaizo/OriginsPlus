@@ -22,6 +22,7 @@ public final class OriginTypes {
     public static final RegistryObject<OriginType> ENDERIAN = ORIGINS.register("enderian_origin", EnderianOriginType::new);
     public static final RegistryObject<OriginType> SHARK = ORIGINS.register("shark_origin", SharkOriginType::new);
     public static final RegistryObject<OriginType> PHOENIX = ORIGINS.register("phoenix_origin", PhoenixOriginType::new);
+    public static final RegistryObject<OriginType> ARACHNID = ORIGINS.register("arachnid_origin", ArachnidOriginType::new);
 
     @Nullable
     public static ResourceLocation getKey(OriginType originType) {

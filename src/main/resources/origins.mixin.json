@@ -6,6 +6,7 @@
     "BlockDropMixin$MixedBlock",
     "BlockDropMixin$MixedItemPredicate",
     "BlockDropMixin$MixedMatchTool",
+    "CobwebMixin$MixedWebBlock",
     "ElytraMixin$MixedLivingEntity",
     "ElytraMixin$MixedPlayerEntity",
     "PlayerSpawnMixin$MixedPlayerList",
