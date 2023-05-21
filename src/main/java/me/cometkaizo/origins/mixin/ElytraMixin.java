@@ -2,7 +2,10 @@ package me.cometkaizo.origins.mixin;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.matrix.MatrixStack;
-import me.cometkaizo.origins.animation.*;
+import me.cometkaizo.origins.animation.SimpleEaseInOut;
+import me.cometkaizo.origins.animation.SimpleEaseOut;
+import me.cometkaizo.origins.animation.SimpleTransition;
+import me.cometkaizo.origins.animation.Transition;
 import me.cometkaizo.origins.origin.ElytrianOriginType;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.OriginTypes;
@@ -23,6 +26,8 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -37,6 +42,7 @@ public final class ElytraMixin {
 
     private static final String MIXIN_TAG_KEY = "ElytraMixin_mixin";
 
+    @OnlyIn(Dist.CLIENT)
     @Mixin(PlayerModel.class)
     public static abstract class MixedPlayerModel<T extends LivingEntity> extends BipedModel<T> {
 
@@ -49,7 +55,7 @@ public final class ElytraMixin {
         @Inject(at = @At(value = "INVOKE",
                 target = "Lnet/minecraft/client/renderer/entity/model/BipedModel;setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V",
                 shift = At.Shift.AFTER),
-                method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V")
+                method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", remap = false)
         protected void setRotationAngles(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS)) {
@@ -72,6 +78,7 @@ public final class ElytraMixin {
         }
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Mixin(ElytraModel.class)
     public static abstract class MixedElytraModel {
         @Unique
@@ -95,7 +102,6 @@ public final class ElytraMixin {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null &&
                     origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS)) {
-                // TODO: 2023-04-25 remove hard-coded sections by splitting types into powers/properties
                 int upBoostTime;
                 if (origin.getType() == OriginTypes.ELYTRIAN.get())
                     upBoostTime = origin.getTimeTracker().getTimerLeft(ElytrianOriginType.Cooldown.UP_BOOST);
@@ -133,6 +139,7 @@ public final class ElytraMixin {
         }
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Mixin(ElytraLayer.class)
     public static abstract class MixedElytraLayer {
 
@@ -189,6 +196,7 @@ public final class ElytraMixin {
         }
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Mixin(ClientPlayerEntity.class)
     public static abstract class MixedClientPlayerEntity extends AbstractClientPlayerEntity {
 
@@ -204,6 +212,7 @@ public final class ElytraMixin {
         }
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Mixin(CapeLayer.class)
     public static class MixedCapeLayer {
 

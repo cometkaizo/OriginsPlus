@@ -3,11 +3,15 @@ package me.cometkaizo.origins.origin;
 import me.cometkaizo.origins.property.SpeciesProperty;
 import me.cometkaizo.origins.util.AttributeUtils;
 import me.cometkaizo.origins.util.TimeTracker;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.attributes.Attributes;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
 import net.minecraft.util.DamageSource;
@@ -23,7 +27,7 @@ import java.util.List;
 
 public class ArachnidOriginType extends AbstractOriginType {
 
-    public static final double MAX_HEALTH = 6 * 2;
+    public static final double MAX_HEALTH = 8 * 2;
     public static final float ARACHNID_AGGRO_RANGE = 10;
     public static final int PROJ_SLOW_BASE_DURATION = 2 * 20;
     public static final double PROJ_SLOW_DURATION_DISTANCE_AMP = 0.2;
@@ -38,6 +42,7 @@ public class ArachnidOriginType extends AbstractOriginType {
     public static final double WALL_CLIMB_SPEED = 0.09;
     public static final double WALL_SLOW_FALL_SPEED_AMP = 0.6;
     public static final double WALL_CLIMB_DISTANCE = 0.2;
+    public static final float BANE_OF_ARTHROPODS_DAMAGE_LEVEL_AMP = 2.5F;
 
     public static final SpeciesProperty SPIDER_SPECIES = new SpeciesProperty.Builder()
             .setMobSpecies(EntityType.SPIDER)
@@ -48,10 +53,11 @@ public class ArachnidOriginType extends AbstractOriginType {
             .setRallyRadius(ARACHNID_AGGRO_RANGE).build();
 
 
+    // Minecraft is not multithreaded so should work
     private final BlockPos.Mutable wallCheckPos = new BlockPos.Mutable();
 
     protected ArachnidOriginType() {
-        super(
+        super("Arachnid",
                 SPIDER_SPECIES,
                 CAVE_SPIDER_SPECIES
         );
@@ -61,7 +67,7 @@ public class ArachnidOriginType extends AbstractOriginType {
         NO_COBWEB_SLOWDOWN
     }
 
-    public enum Cooldown implements TimeTracker.Cooldown{
+    public enum Cooldown implements TimeTracker.Timer {
         AOE_SLOWNESS(30 * 20);
 
         private final int duration;
@@ -128,6 +134,32 @@ public class ArachnidOriginType extends AbstractOriginType {
     }
 
     @Override
+    public void onPlayerSensitiveEvent(Object event, Origin origin) {
+        super.onPlayerSensitiveEvent(event, origin);
+        if (isCanceled(event)) return;
+        if (event instanceof LivingHurtEvent) {
+            onPlayerHurt((LivingHurtEvent) event, origin);
+        }
+    }
+
+    private void onPlayerHurt(LivingHurtEvent event, Origin origin) {
+        if (!origin.isServerSide()) return;
+        DamageSource damageSource = event.getSource();
+        if (!(damageSource.getImmediateSource() instanceof LivingEntity)) return;
+
+        LivingEntity damager = (LivingEntity) damageSource.getImmediateSource();
+        ItemStack damagerItem = damager.getHeldItemMainhand();
+        int baneOfArthropodsLevel = EnchantmentHelper.getEnchantmentLevel(Enchantments.BANE_OF_ARTHROPODS, damagerItem);
+        if (baneOfArthropodsLevel > 0) {
+            addBaneOfArthropodsDamage(event, baneOfArthropodsLevel);
+        }
+    }
+
+    private void addBaneOfArthropodsDamage(LivingHurtEvent event, int baneOfArthropodsLevel) {
+        event.setAmount(event.getAmount() + baneOfArthropodsLevel * BANE_OF_ARTHROPODS_DAMAGE_LEVEL_AMP);
+    }
+
+    @Override
     public void onEvent(Object event, Origin origin) {
         super.onEvent(event, origin);
         if (isCanceled(event)) return;
@@ -174,7 +206,8 @@ public class ArachnidOriginType extends AbstractOriginType {
     private void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
         if (event.phase == TickEvent.Phase.START) return;
         if (origin.isServerSide()) return;
-        ClientPlayerEntity player = (ClientPlayerEntity) origin.getPlayer();
+        ClientPlayerEntity player = Minecraft.getInstance().player;
+        if (!origin.getPlayer().equals(player)) return;
 
         Vector3d motion = player.getMotion();
         if (player.collidedHorizontally || isNextToWall(player)) {
@@ -189,7 +222,7 @@ public class ArachnidOriginType extends AbstractOriginType {
         }
     }
 
-    private boolean isNextToWall(ClientPlayerEntity player) {
+    private boolean isNextToWall(PlayerEntity player) {
         double x = player.getPosX();
         double y = player.getPosY();
         double z = player.getPosZ();

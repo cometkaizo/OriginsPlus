@@ -83,7 +83,7 @@ public class PhoenixOriginType extends AbstractOriginType {
         RESPAWN_AT_DEATH
     }
 
-    public enum Cooldown implements TimeTracker.Cooldown {
+    public enum Cooldown implements TimeTracker.Timer {
         FIRE_POWER(30 * 20),
         WATER_DAMAGE(1.5 * 20),
         UP_BOOST(0.75 * 20),

@@ -85,10 +85,10 @@ public class TimeTracker {
         if (duration <= 0) return;
         addOrOverwrite(key, new TimerEntry(tick, tick + duration));
     }
-    public void addTimer(Cooldown cooldown) {
-        if (cooldown == null) return;
-        if (cooldown.getDuration() <= 0) return;
-        addOrOverwrite(cooldown, new TimerEntry(tick, tick + cooldown.getDuration()));
+    public void addTimer(Timer timer) {
+        if (timer == null) return;
+        if (timer.getDuration() <= 0) return;
+        addOrOverwrite(timer, new TimerEntry(tick, tick + timer.getDuration()));
     }
 
     public void addStopwatch(Object key) {
@@ -129,7 +129,7 @@ public class TimeTracker {
     }
 
 
-    public interface Cooldown {
+    public interface Timer {
         int getDuration();
     }
 

@@ -28,11 +28,11 @@ public class FearOfPumpkinsProperty extends EventInterceptProperty {
     private final int range;
     private final int pumpkinScareDamage;
     private final int jackOLanternScareDamage;
-    private final TimeTracker.Cooldown pumpkinCooldown;
-    private final TimeTracker.Cooldown jackOLanternCooldown;
+    private final TimeTracker.Timer pumpkinCooldown;
+    private final TimeTracker.Timer jackOLanternCooldown;
 
 
-    public enum Cooldown implements TimeTracker.Cooldown {
+    public enum Cooldown implements TimeTracker.Timer {
         PUMPKIN(0),
         JACK_O_LANTERN(0);
         public final int duration;
@@ -45,7 +45,7 @@ public class FearOfPumpkinsProperty extends EventInterceptProperty {
         }
     }
 
-    protected FearOfPumpkinsProperty(String name, int range, int pumpkinScareDamage, int jackOLanternScareDamage, TimeTracker.Cooldown pumpkinCooldown, TimeTracker.Cooldown jackOLanternCooldown) {
+    protected FearOfPumpkinsProperty(String name, int range, int pumpkinScareDamage, int jackOLanternScareDamage, TimeTracker.Timer pumpkinCooldown, TimeTracker.Timer jackOLanternCooldown) {
         super(name);
         this.range = range;
         this.pumpkinScareDamage = pumpkinScareDamage;
@@ -130,8 +130,8 @@ public class FearOfPumpkinsProperty extends EventInterceptProperty {
         private int range = DEFAULT_RANGE;
         private int pumpkinDamage = DEFAULT_PUMPKIN_DAMAGE;
         private int jackOLanternDamage = DEFAULT_JACK_O_LANTERN_DAMAGE;
-        private TimeTracker.Cooldown pumpkinCooldown = Cooldown.PUMPKIN;
-        private TimeTracker.Cooldown jackOLanternCooldown = Cooldown.JACK_O_LANTERN;
+        private TimeTracker.Timer pumpkinCooldown = Cooldown.PUMPKIN;
+        private TimeTracker.Timer jackOLanternCooldown = Cooldown.JACK_O_LANTERN;
 
         public Builder setName(String name) {
             this.name = name;
@@ -153,12 +153,12 @@ public class FearOfPumpkinsProperty extends EventInterceptProperty {
             return this;
         }
 
-        public Builder setPumpkinCooldown(TimeTracker.Cooldown pumpkinCooldown) {
+        public Builder setPumpkinCooldown(TimeTracker.Timer pumpkinCooldown) {
             this.pumpkinCooldown = pumpkinCooldown;
             return this;
         }
 
-        public Builder setJackOLanternCooldown(TimeTracker.Cooldown jackOLanternCooldown) {
+        public Builder setJackOLanternCooldown(TimeTracker.Timer jackOLanternCooldown) {
             this.jackOLanternCooldown = jackOLanternCooldown;
             return this;
         }

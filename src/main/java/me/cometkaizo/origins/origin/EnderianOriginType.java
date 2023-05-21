@@ -237,7 +237,8 @@ public class EnderianOriginType extends AbstractOriginType {
         if (event.phase == TickEvent.Phase.START) return;
 
         ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (player == null || !origin.getPlayer().getGameProfile().equals(player.getGameProfile())) return;
+        if (!origin.getPlayer().equals(player)) return;
+
         BlockRayTraceResult rayTraceResult = (BlockRayTraceResult) player.pick(REACH, 0, false);
         if (rayTraceResult.getType() != RayTraceResult.Type.BLOCK) return;
 

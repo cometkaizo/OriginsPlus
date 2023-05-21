@@ -8,6 +8,7 @@ import me.cometkaizo.origins.property.Property;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
 import me.cometkaizo.origins.util.TimeTracker;
+import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
@@ -38,6 +39,10 @@ public class Origin implements INBTSerializable<INBT> {
     private OriginType type;
     private PlayerEntity player;
     private boolean isServerSide;
+    /**
+     * Whether the {@code player} is referring to {@link Minecraft#player}
+     */
+    private boolean isMinecraftPlayer;
 
     protected static final DataKey<TimeTracker> TIME_TRACKER = DataKey.create(TimeTracker.class);
 
@@ -77,14 +82,17 @@ public class Origin implements INBTSerializable<INBT> {
         if (type != null) {
             tryOnFirstActivate();
             type.onEvent(event, this);
-            if (event instanceof EntityEvent && isAboutPlayer((EntityEvent) event)) {
+            if (isAboutPlayer(event)) {
                 type.onPlayerSensitiveEvent(event, this);
             }
         }
     }
 
-    private boolean isAboutPlayer(EntityEvent event) {
-        return player.equals(event.getEntity());
+    private boolean isAboutPlayer(Event event) {
+        return event instanceof EntityEvent && player.equals(((EntityEvent) event).getEntity()) ||
+                event instanceof TickEvent.ClientTickEvent && isMinecraftPlayer ||
+                event instanceof TickEvent.RenderTickEvent && isMinecraftPlayer ||
+                event instanceof TickEvent.PlayerTickEvent && player.equals(((TickEvent.PlayerTickEvent) event).player);
     }
 
     public boolean hasProperty(Object property) {
@@ -249,5 +257,6 @@ public class Origin implements INBTSerializable<INBT> {
     private void setPlayer(PlayerEntity player) {
         this.player = player;
         this.isServerSide = player instanceof ServerPlayerEntity;
+        this.isMinecraftPlayer = Minecraft.getInstance().player != null && player.getGameProfile().equals(Minecraft.getInstance().player.getGameProfile());
     }
 }

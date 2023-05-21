@@ -1,5 +1,6 @@
 package me.cometkaizo.origins.origin;
 
+import me.cometkaizo.origins.origin.client.ClientElytrianOriginType;
 import me.cometkaizo.origins.potion.OriginEffects;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
@@ -21,10 +22,13 @@ import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.LogicalSide;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,20 +36,7 @@ import org.apache.logging.log4j.Logger;
 public class ElytrianOriginType extends AbstractOriginType {
 
     public static final Logger LOGGER = LogManager.getLogger();
-    public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;
-    public static final double FLAP_AMPLIFIER = 1.1;
-    public static final double BOOST_AMPLIFIER = 0.85;
-    public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.3;
-    public static final float BOOST_EXHAUSTION = 0.06F;
-    public static final float SNEAK_BOOST_REDUCTION = 0.3F;
-    public static final int MAX_ARMOR_VALUE = 20;
-    public static final float XP_BONUS_AMP = 0.05F;
-    protected static final DataKey<Float> PREV_ROLL = DataKey.create(Float.class);
-    protected static final DataKey<Float> ROLL_FOLLOW_TARGET = DataKey.create(Float.class);
-    protected static final DataKey<Double> PREV_ROLL_PARTIAL_TICKS = DataKey.create(Double.class);
-    public static final float ROLL_AMP = 1;
-    public static final double ROLL_RESPONSIVENESS = 0.2;
-    public static final float ROLL_FOLLOW_TARGET_REDUCTION = 0.7F;/*
+    public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;/*
     public static final ActionOnItemRightClickAirProperty FORWARD_BOOST_ON_EMPTY_CLICK = new ActionOnItemRightClickAirProperty.Builder()
             .withPlayerSensitiveAction(Item.class, (__, origin) -> tryBoostForward(origin)).build();
     public static final EventInterceptProperty NO_HEAVY_ARMOR = new EventInterceptProperty.Builder()
@@ -117,7 +108,7 @@ public class ElytrianOriginType extends AbstractOriginType {
         PERMANENT_WINGS
     }
 
-    public enum Cooldown implements TimeTracker.Cooldown {
+    public enum Cooldown implements TimeTracker.Timer {
         UP_BOOST(0.75 * 20),
         FORWARD_BOOST(7);
         public final int duration;
@@ -209,10 +200,6 @@ public class ElytrianOriginType extends AbstractOriginType {
                 slot == EquipmentSlotType.FEET;
     }
 
-    protected static float getLightness(float armorValue) {
-        return 1 - armorValue / MAX_ARMOR_VALUE;
-    }
-
     private static boolean isUnderLowCeiling(PlayerEntity player) {
         World level = player.world;
         Vector3d twoBlocksAbove = player.getPositionVec().add(0, 2, 0);
@@ -222,46 +209,15 @@ public class ElytrianOriginType extends AbstractOriginType {
                 getBlockState(level, threeBlocksAbove).isSolid();
     }
 
-    private static void boostUp(Origin origin, ClientPlayerEntity player, TimeTracker cooldownTracker) {
-        float flapAmount = (-player.rotationPitch + 90) / 180;
-        float lightness = getLightness(getArmorValue(origin.getPlayer()));
-
-        double yMotion = flapAmount * FLAP_AMPLIFIER * lightness;
-        player.setMotion(player.getMotion().add(0, yMotion, 0));
-
-        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
-        cooldownTracker.addTimer(Cooldown.UP_BOOST);
-        player.addExhaustion(BOOST_EXHAUSTION);
-    }
-
-    private static void boostForward(Origin origin, ClientPlayerEntity player, TimeTracker cooldownTracker) {
-        Vector3d boostAmount = player.getLookVec();
-        float lightness = getLightness(getArmorValue(origin.getPlayer()));
-        float xpBonus = Math.max(1F, player.experienceLevel * XP_BONUS_AMP);
-        float shiftReduction = player.isSneaking() ? SNEAK_BOOST_REDUCTION : 1;
-
-        Vector3d boost = boostAmount
-                .scale(BOOST_AMPLIFIER)
-                .scale(lightness)
-                .scale(xpBonus)
-                .scale(shiftReduction);
-        Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
-        player.setMotion(oldMotion.add(boost));
-
-        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
-        cooldownTracker.addTimer(Cooldown.FORWARD_BOOST);
-        player.addExhaustion(BOOST_EXHAUSTION);
-    }
-
     private static BlockState getBlockState(World level, Vector3d position) {
         return level.getBlockState(new BlockPos(position));
     }
 
     @Override
     public void onEvent(Object event, Origin origin) {
-        if (event instanceof EntityViewRenderEvent.CameraSetup) { //
+        /*if (event instanceof EntityViewRenderEvent.CameraSetup) { //
             onCameraSetup((EntityViewRenderEvent.CameraSetup) event, origin);
-        } else if (event instanceof LivingEquipmentChangeEvent) {
+        } else */if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
@@ -272,10 +228,13 @@ public class ElytrianOriginType extends AbstractOriginType {
         } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
             onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
         }
+
+        DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientElytrianOriginType.onEvent);
     }
 
     @Override
     public void onFirstActivate(Origin origin) {
+
         if (origin.isServerSide()) return;
         origin.getTypeDataManager().register(PREV_ROLL, 0F);
         origin.getTypeDataManager().register(ROLL_FOLLOW_TARGET, 0F);
@@ -295,80 +254,6 @@ public class ElytrianOriginType extends AbstractOriginType {
     @Override
     public void onDeactivate(Origin origin) {
         origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
-    }
-
-    public void onCameraSetup(EntityViewRenderEvent.CameraSetup event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (origin.isServerSide()) return;
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-        DataManager dataManager = origin.getTypeDataManager();
-
-        double partialTicks = event.getRenderPartialTicks();
-        Double prevPartialTicks = dataManager.get(PREV_ROLL_PARTIAL_TICKS);
-        float prevRoll = dataManager.get(PREV_ROLL);
-        float followTarget = dataManager.get(ROLL_FOLLOW_TARGET);
-
-        double followAmt = (followTarget - prevRoll) * ROLL_RESPONSIVENESS * prevPartialTicks;
-
-        double newRoll = (prevRoll + followAmt) * ROLL_AMP;
-        event.setRoll((float) newRoll);
-
-        if (prevPartialTicks > partialTicks) {
-            dataManager.set(PREV_ROLL, event.getRoll());
-        }
-        dataManager.set(PREV_ROLL_PARTIAL_TICKS, partialTicks);
-    }
-
-    public void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (!origin.getPlayer().equals(event.getPlayer())) return;
-
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (player == null) return;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-
-        if (!player.isElytraFlying()) return;
-
-        if (!cooldownTracker.hasCooldownOf(Cooldown.class)) {
-            boostForward(origin, player, cooldownTracker);
-        }
-    }
-
-    public void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (event.phase == TickEvent.Phase.START) return;
-        if (origin.isServerSide()) return;
-
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-
-        if (!player.isElytraFlying()) return;
-        MovementInput input = player.movementInput;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-
-        if (input.jump && !cooldownTracker.hasCooldownOf(Cooldown.class)) {
-            boostUp(origin, player, cooldownTracker);
-        }
-    }
-
-    public void updateRollTarget(TickEvent.ClientTickEvent event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (event.phase == TickEvent.Phase.START) return;
-        if (origin.isServerSide()) return;
-
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-
-        DataManager dataManager = origin.getTypeDataManager();
-
-        float yawDiff = player.rotationYawHead - player.prevRotationYawHead;
-        float followTarget = dataManager.get(ROLL_FOLLOW_TARGET);
-        if (player.isElytraFlying())
-            dataManager.set(ROLL_FOLLOW_TARGET, (followTarget + yawDiff) * ROLL_FOLLOW_TARGET_REDUCTION);
-        else
-            dataManager.set(ROLL_FOLLOW_TARGET, followTarget * ROLL_FOLLOW_TARGET_REDUCTION);
-
     }
 
     public void onPlayerTick(TickEvent.PlayerTickEvent event, Origin origin) {

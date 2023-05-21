@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-public class CobwebMixin {
+public final class CobwebMixin {
 
     @Mixin(WebBlock.class)
     public static abstract class MixedWebBlock extends Block implements IForgeShearable {

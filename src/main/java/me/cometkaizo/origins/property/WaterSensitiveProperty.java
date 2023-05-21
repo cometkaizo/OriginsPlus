@@ -25,15 +25,15 @@ import java.util.List;
 public class WaterSensitiveProperty extends EventInterceptProperty {
     public static final int DEFAULT_WATER_DAMAGE = 3;
     private final int waterDamage;
-    private final TimeTracker.Cooldown damageCooldown;
+    private final TimeTracker.Timer damageCooldown;
 
-    protected WaterSensitiveProperty(String name, int waterDamage, TimeTracker.Cooldown damageCooldown) {
+    protected WaterSensitiveProperty(String name, int waterDamage, TimeTracker.Timer damageCooldown) {
         super(name);
         this.waterDamage = waterDamage;
         this.damageCooldown = damageCooldown;
     }
 
-    public enum Cooldown implements TimeTracker.Cooldown {
+    public enum Cooldown implements TimeTracker.Timer {
         WATER_DAMAGE(0);
         public final int duration;
         Cooldown(double duration) {
@@ -117,7 +117,7 @@ public class WaterSensitiveProperty extends EventInterceptProperty {
     public static class Builder {
         private String name = "Water Sensitivity";
         private int waterDamage = DEFAULT_WATER_DAMAGE;
-        private TimeTracker.Cooldown damageCooldown = Cooldown.WATER_DAMAGE;
+        private TimeTracker.Timer damageCooldown = Cooldown.WATER_DAMAGE;
 
         public Builder setName(String name) {
             this.name = name;
@@ -129,7 +129,7 @@ public class WaterSensitiveProperty extends EventInterceptProperty {
             return this;
         }
 
-        public Builder setDamageCooldown(TimeTracker.Cooldown damageCooldown) {
+        public Builder setDamageCooldown(TimeTracker.Timer damageCooldown) {
             this.damageCooldown = damageCooldown;
             return this;
         }

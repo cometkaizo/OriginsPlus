@@ -50,7 +50,7 @@ public class SharkOriginType extends AbstractOriginType {
     public static final double ROLL_RESPONSIVENESS = 0.2;
     public static final float ROLL_FOLLOW_TARGET_REDUCTION = 0.7F;
 
-    public enum Cooldown implements TimeTracker.Cooldown {
+    public enum Cooldown implements TimeTracker.Timer {
         RIPTIDE_BOOST(1.25 * 20);
         public final int duration;
 
