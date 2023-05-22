@@ -39,6 +39,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     public static final float BOOST_EXHAUSTION = 0.06F;
     public static final float SNEAK_BOOST_REDUCTION = 0.3F;
     public static final float XP_BONUS_AMP = 0.05F;
+    public static final float HEAVINESS_AMP = 0.25F;
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
@@ -223,7 +224,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     protected static float getLightness(float armorValue) {
-        return 1 - armorValue / MAX_ARMOR_VALUE;
+        return 1 - (armorValue / MAX_ARMOR_VALUE) * HEAVINESS_AMP;
     }
 
     @Override

@@ -18,17 +18,11 @@ public final class OriginTypes {
     public static final Supplier<IForgeRegistry<OriginType>> ORIGINS_REGISTRY = OriginTypes.ORIGINS.makeRegistry("origins", RegistryBuilder::new);
 
     public static final RegistryObject<OriginType> HUMAN = ORIGINS.register("human_origin", () -> new AbstractOriginType("Human") {});
-
     public static final RegistryObject<OriginType> ELYTRIAN = ORIGINS.register("elytrian_origin", ElytrianOriginType::new);
-
     public static final RegistryObject<OriginType> ENDERIAN = ORIGINS.register("enderian_origin", EnderianOriginType::new);
-
     public static final RegistryObject<OriginType> SHARK = ORIGINS.register("shark_origin", SharkOriginType::new);
-
     public static final RegistryObject<OriginType> PHOENIX = ORIGINS.register("phoenix_origin", PhoenixOriginType::new);
-
     public static final RegistryObject<OriginType> ARACHNID = ORIGINS.register("arachnid_origin", ArachnidOriginType::new);
-
     public static final RegistryObject<OriginType> SLIMICIAN = ORIGINS.register("slimician_origin", SlimicianOriginType::new);
 
 
