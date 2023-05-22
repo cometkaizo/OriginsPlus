@@ -40,6 +40,9 @@ public class PacketUtils {
         CHANNEL.messageBuilder(C2SAcknowledgeSyncOrigin.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SAcknowledgeSyncOrigin::toBytes).decoder(C2SAcknowledgeSyncOrigin::new)
                 .consumer(C2SAcknowledgeSyncOrigin::handle).add();
+        CHANNEL.messageBuilder(C2SThrowEnderianPearl.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SThrowEnderianPearl::toBytes).decoder(C2SThrowEnderianPearl::new)
+                .consumer(C2SThrowEnderianPearl::handle).add();
 
 
         LOGGER.info("Initialized PacketUtils on Channel {}", CHANNEL);

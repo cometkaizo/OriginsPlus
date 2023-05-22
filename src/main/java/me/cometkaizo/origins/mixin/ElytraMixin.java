@@ -40,8 +40,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 public final class ElytraMixin {
 
-    private static final String MIXIN_TAG_KEY = "ElytraMixin_mixin";
-
     @OnlyIn(Dist.CLIENT)
     @Mixin(PlayerModel.class)
     public static abstract class MixedPlayerModel<T extends LivingEntity> extends BipedModel<T> {
@@ -55,7 +53,7 @@ public final class ElytraMixin {
         @Inject(at = @At(value = "INVOKE",
                 target = "Lnet/minecraft/client/renderer/entity/model/BipedModel;setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V",
                 shift = At.Shift.AFTER),
-                method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", remap = false)
+                method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V")
         protected void setRotationAngles(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS)) {
@@ -97,7 +95,7 @@ public final class ElytraMixin {
         @Shadow @Final private ModelRenderer rightWing;
         @Shadow @Final private ModelRenderer leftWing;
 
-        @Inject(method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", at = @At("TAIL"), remap = false)
+        @Inject(method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
         protected void setRotationAngles(LivingEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null &&

@@ -2,31 +2,28 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.common.OriginDamageSources;
+import me.cometkaizo.origins.origin.client.ClientPhoenixOriginType;
 import me.cometkaizo.origins.util.ColorUtils;
 import me.cometkaizo.origins.util.ParticleSpawner;
 import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TimeTracker;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.particles.ParticleTypes;
 import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
 import net.minecraft.util.DamageSource;
-import net.minecraft.util.MovementInput;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.server.ServerWorld;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.CriticalHitEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +31,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.awt.*;
 import java.util.List;
+
+import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 @Mod.EventBusSubscriber(modid = Main.MOD_ID)
 public class PhoenixOriginType extends AbstractOriginType {
@@ -43,11 +42,6 @@ public class PhoenixOriginType extends AbstractOriginType {
     public static final int FIRE_POWER_RANGE = 4;
     private static final double DEATH_FIRE_RANGE = 8;
     public static final int WATER_DAMAGE = 2;
-    public static final double FLAP_AMPLIFIER = 0.7;
-    public static final double BOOST_AMPLIFIER = 0.4;
-    public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.4;
-    public static final float BOOST_EXHAUSTION = 0.08F;
-    public static final float FIRE_TICK_FLY_SPEED_AMP = 0.022F;
     public static final TimeTracker SKY_EFFECTS_TIME_TRACKER = new TimeTracker();
     public static final Color SKY_DEATH_COLOR = new Color(112, 14, 10);
     public static final ParticleSpawner FIRE_POWER_PARTICLE_SPAWNER = new ParticleSpawner()
@@ -116,15 +110,18 @@ public class PhoenixOriginType extends AbstractOriginType {
             onLivingHurt((LivingHurtEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        } else if (event instanceof TickEvent.ClientTickEvent) {
-            onClientTick((TickEvent.ClientTickEvent) event, origin);
-        } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
-            onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
         } else if (event instanceof LivingDeathEvent) {
             onLivingDeath((LivingDeathEvent) event, origin);
         } else if (event instanceof EntityViewRenderEvent.FogColors) {
             onFogColor((EntityViewRenderEvent.FogColors) event);
         }
+    }
+
+    @Override
+    public void onPlayerSensitiveEvent(Object event, Origin origin) {
+        super.onPlayerSensitiveEvent(event, origin);
+
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onPlayerSensitiveEvent(event, origin));
     }
 
     @Override
@@ -170,52 +167,6 @@ public class PhoenixOriginType extends AbstractOriginType {
             }
         } else {
             cooldownTracker.remove(Cooldown.WATER_DAMAGE);
-        }
-    }
-
-    public void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (!origin.getPlayer().equals(event.getPlayer())) return;
-
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (player == null) return;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-
-        if (!player.isElytraFlying()) return;
-
-        if ( !cooldownTracker.hasTimer(Cooldown.UP_BOOST) && !cooldownTracker.hasTimer(Cooldown.FORWARD_BOOST)) {
-            Vector3d boostAmount = player.getLookVec();
-            float fireSpeedBoost = Math.max(origin.getPlayer().getFireTimer(), 0) * FIRE_TICK_FLY_SPEED_AMP + 1;
-            Vector3d boost = boostAmount.scale(BOOST_AMPLIFIER).scale(fireSpeedBoost);
-            Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
-            player.setMotion(oldMotion.add(boost));
-
-            SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
-            cooldownTracker.addTimer(Cooldown.FORWARD_BOOST);
-            player.addExhaustion(BOOST_EXHAUSTION);
-        }
-    }
-
-    public void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (event.phase == TickEvent.Phase.START) return;
-
-        if (origin.isServerSide()) return;
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-
-        if (!player.isElytraFlying()) return;
-        MovementInput input = player.movementInput;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-
-        if (input.jump && !cooldownTracker.hasTimer(Cooldown.UP_BOOST) && !cooldownTracker.hasTimer(Cooldown.FORWARD_BOOST)) {
-            float flapAmount = (-player.rotationPitch + 90) / 180;
-            double yMotion = FLAP_AMPLIFIER * flapAmount;
-            player.setMotion(player.getMotion().add(0, yMotion, 0));
-
-            SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
-            cooldownTracker.addTimer(Cooldown.UP_BOOST);
-            player.addExhaustion(BOOST_EXHAUSTION);
         }
     }
 

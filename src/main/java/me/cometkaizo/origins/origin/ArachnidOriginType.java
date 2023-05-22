@@ -1,10 +1,9 @@
 package me.cometkaizo.origins.origin;
 
+import me.cometkaizo.origins.origin.client.ClientArachnidOriginType;
 import me.cometkaizo.origins.property.SpeciesProperty;
 import me.cometkaizo.origins.util.AttributeUtils;
 import me.cometkaizo.origins.util.TimeTracker;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EntityType;
@@ -16,14 +15,14 @@ import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
-import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.Event;
 
 import java.util.List;
+
+import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 public class ArachnidOriginType extends AbstractOriginType {
 
@@ -39,9 +38,6 @@ public class ArachnidOriginType extends AbstractOriginType {
     public static final int AOE_SLOW_MOB_AMP = 2;
     public static final int AOE_SLOW_RANGE = 5;
     public static final int AOE_SLOW_RANGE_SQ = AOE_SLOW_RANGE * AOE_SLOW_RANGE;
-    public static final double WALL_CLIMB_SPEED = 0.09;
-    public static final double WALL_SLOW_FALL_SPEED_AMP = 0.6;
-    public static final double WALL_CLIMB_DISTANCE = 0.2;
     public static final float BANE_OF_ARTHROPODS_DAMAGE_LEVEL_AMP = 2.5F;
 
     public static final SpeciesProperty SPIDER_SPECIES = new SpeciesProperty.Builder()
@@ -52,9 +48,6 @@ public class ArachnidOriginType extends AbstractOriginType {
             .setMobSpecies(EntityType.CAVE_SPIDER)
             .setRallyRadius(ARACHNID_AGGRO_RANGE).build();
 
-
-    // Minecraft is not multithreaded so should work
-    private final BlockPos.Mutable wallCheckPos = new BlockPos.Mutable();
 
     protected ArachnidOriginType() {
         super("Arachnid",
@@ -83,6 +76,13 @@ public class ArachnidOriginType extends AbstractOriginType {
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
         return super.hasMixinProperty(property, origin) || property == Property.NO_COBWEB_SLOWDOWN;
+    }
+
+    @Override
+    public void onFirstActivate(Origin origin) {
+        super.onFirstActivate(origin);
+
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onFirstActivate(origin));
     }
 
     @Override
@@ -137,9 +137,12 @@ public class ArachnidOriginType extends AbstractOriginType {
     public void onPlayerSensitiveEvent(Object event, Origin origin) {
         super.onPlayerSensitiveEvent(event, origin);
         if (isCanceled(event)) return;
+
         if (event instanceof LivingHurtEvent) {
             onPlayerHurt((LivingHurtEvent) event, origin);
         }
+
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onPlayerSensitiveEvent(event, origin));
     }
 
     private void onPlayerHurt(LivingHurtEvent event, Origin origin) {
@@ -165,8 +168,6 @@ public class ArachnidOriginType extends AbstractOriginType {
         if (isCanceled(event)) return;
         if (event instanceof LivingHurtEvent) {
             onLivingHurt((LivingHurtEvent) event, origin);
-        } else if (event instanceof TickEvent.ClientTickEvent) {
-            onClientTick((TickEvent.ClientTickEvent) event, origin);
         }
     }
 
@@ -201,48 +202,6 @@ public class ArachnidOriginType extends AbstractOriginType {
 
     private static boolean trueSourceIsPlayer(DamageSource damageSource, PlayerEntity player) {
         return damageSource.getTrueSource() != null && damageSource.getTrueSource().equals(player);
-    }
-
-    private void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
-        if (event.phase == TickEvent.Phase.START) return;
-        if (origin.isServerSide()) return;
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-
-        Vector3d motion = player.getMotion();
-        if (player.collidedHorizontally || isNextToWall(player)) {
-            if (shouldStopOnWall(player)) {
-                player.setMotion(Vector3d.ZERO);
-            } else if (shouldClimbWall(player)) {
-                player.setMotion(motion.x, Math.max(motion.y, WALL_CLIMB_SPEED), motion.z);
-            } else {
-                player.setMotion(motion.x, motion.y * WALL_SLOW_FALL_SPEED_AMP, motion.z);
-            }
-            player.fallDistance = 0;
-        }
-    }
-
-    private boolean isNextToWall(PlayerEntity player) {
-        double x = player.getPosX();
-        double y = player.getPosY();
-        double z = player.getPosZ();
-        AxisAlignedBB boundingBox = player.getBoundingBox();
-        double halfWidth = (boundingBox.maxX - boundingBox.minX) / 2;
-        double halfDepth = (boundingBox.maxZ - boundingBox.minZ) / 2;
-        World world = player.world;
-
-        return world.getBlockState(wallCheckPos.setPos(x + halfWidth + WALL_CLIMB_DISTANCE, y, z + halfDepth + WALL_CLIMB_DISTANCE)).isSolid() ||
-                world.getBlockState(wallCheckPos.setPos(x + halfWidth + WALL_CLIMB_DISTANCE, y, z - halfDepth - WALL_CLIMB_DISTANCE)).isSolid() ||
-                world.getBlockState(wallCheckPos.setPos(x - halfWidth - WALL_CLIMB_DISTANCE, y, z + halfDepth + WALL_CLIMB_DISTANCE)).isSolid() ||
-                world.getBlockState(wallCheckPos.setPos(x - halfWidth - WALL_CLIMB_DISTANCE, y, z - halfDepth - WALL_CLIMB_DISTANCE)).isSolid();
-    }
-
-    private boolean shouldClimbWall(ClientPlayerEntity player) {
-        return player.collidedHorizontally || player.movementInput.jump;
-    }
-
-    private boolean shouldStopOnWall(ClientPlayerEntity player) {
-        return player.isSneaking();
     }
 
 }

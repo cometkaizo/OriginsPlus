@@ -1,13 +1,10 @@
 package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.common.OriginDamageSources;
+import me.cometkaizo.origins.origin.client.ClientEnderianOriginType;
 import me.cometkaizo.origins.util.AttributeUtils;
 import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TagUtils;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.Entity;
@@ -29,10 +26,8 @@ import net.minecraft.stats.Stats;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.world.World;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeMod;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
@@ -43,6 +38,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
+
+import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 public class EnderianOriginType extends AbstractOriginType {
 
@@ -76,16 +73,7 @@ public class EnderianOriginType extends AbstractOriginType {
             .withEnchantment(Enchantments.SILK_TOUCH)
             .withCounterEnchantment(Enchantments.FORTUNE).build();*/
 
-
-    private static boolean isPlayerHoldingFortuneTool(Origin origin) {
-        PlayerEntity player = origin.getPlayer();
-        return EnchantmentHelper.getEnchantmentLevel(Enchantments.FORTUNE, player.getHeldItemMainhand()) > 0;
-    }
-
-    private static void tryThrowPearl(Origin origin) {
-        if (!hasPearlCooldown(origin)) throwEnderPearl(origin);
-    }
-    private static boolean hasPearlCooldown(Origin origin) {
+    public static boolean hasPearlCooldown(Origin origin) {
         return origin.getPlayer().getCooldownTracker().hasCooldown(Items.ENDER_PEARL);
     }
 
@@ -98,6 +86,7 @@ public class EnderianOriginType extends AbstractOriginType {
         SILK_TOUCH,
         EXTRA_ENTITY_REACH
     }
+
 /*
     public EnderianOriginType() {
         super("Enderian",
@@ -114,7 +103,7 @@ public class EnderianOriginType extends AbstractOriginType {
         );
     }*/
 
-    private static void throwEnderPearl(Origin origin) {
+    public static void throwEnderPearl(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         World world = player.world;
 
@@ -133,14 +122,10 @@ public class EnderianOriginType extends AbstractOriginType {
     public void onEvent(Object event, Origin origin) {
         if (event instanceof PlayerInteractEvent.RightClickItem) {
             onItemClick((PlayerInteractEvent.RightClickItem) event, origin);
-        } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
-            onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
         } else if (event instanceof EntityTeleportEvent.EnderPearl) {
             onPearlLand((EntityTeleportEvent.EnderPearl) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        } else if (event instanceof TickEvent.ClientTickEvent) {
-            onClientTick((TickEvent.ClientTickEvent) event, origin);
         } else if (event instanceof LivingSetAttackTargetEvent) {
             onAggro((LivingSetAttackTargetEvent) event, origin);
         } else if (event instanceof LivingEquipmentChangeEvent) {
@@ -154,6 +139,8 @@ public class EnderianOriginType extends AbstractOriginType {
         } else if (event instanceof LivingHurtEvent) {
             onLivingHurt((LivingHurtEvent) event, origin);
         }
+
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onEvent(event, origin));
     }
 
     @Override
@@ -182,14 +169,6 @@ public class EnderianOriginType extends AbstractOriginType {
         if (event.getItemStack().getItem() != Items.ENDER_PEARL) return;
         if (!origin.getPlayer().abilities.isCreativeMode)
             event.getItemStack().grow(1);
-    }
-
-    public void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (!origin.getPlayer().equals(event.getPlayer())) return;
-        if (event.getItemStack() != ItemStack.EMPTY) return;
-        if (hasPearlCooldown(origin)) return;
-        throwEnderPearl(origin);
     }
 
     public void onPearlLand(EntityTeleportEvent.EnderPearl event, Origin origin) {
@@ -230,27 +209,6 @@ public class EnderianOriginType extends AbstractOriginType {
     private static void applyWaterDamage(PlayerEntity player) {
         boolean damaged = player.attackEntityFrom(OriginDamageSources.TOUCH_WATER, WATER_DAMAGE);
         if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
-    }
-
-    public void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
-        if (event.isCanceled()) return;
-        if (event.phase == TickEvent.Phase.START) return;
-
-        ClientPlayerEntity player = Minecraft.getInstance().player;
-        if (!origin.getPlayer().equals(player)) return;
-
-        BlockRayTraceResult rayTraceResult = (BlockRayTraceResult) player.pick(REACH, 0, false);
-        if (rayTraceResult.getType() != RayTraceResult.Type.BLOCK) return;
-
-        BlockPos blockpos = rayTraceResult.getPos();
-        BlockState blockstate = player.world.getBlockState(blockpos);
-        if (blockstate.getBlock() == Blocks.CARVED_PUMPKIN) {
-            boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, PUMPKIN_SCARE_DAMAGE / 2F);
-            if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
-        } else if (blockstate.getBlock() == Blocks.JACK_O_LANTERN) {
-            boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, JACK_O_LANTERN_SCARE_DAMAGE / 2F);
-            if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1, 1);
-        }
     }
 
     public void onAggro(LivingSetAttackTargetEvent event, Origin origin) {

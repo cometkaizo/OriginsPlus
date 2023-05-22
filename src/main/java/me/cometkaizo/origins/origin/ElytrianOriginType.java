@@ -2,13 +2,8 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.origin.client.ClientElytrianOriginType;
 import me.cometkaizo.origins.potion.OriginEffects;
-import me.cometkaizo.origins.util.DataKey;
-import me.cometkaizo.origins.util.DataManager;
-import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.block.BlockState;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.EquipmentSlotType;
 import net.minecraft.item.ArmorItem;
@@ -16,22 +11,17 @@ import net.minecraft.item.ArmorMaterial;
 import net.minecraft.item.IArmorMaterial;
 import net.minecraft.item.Item;
 import net.minecraft.potion.EffectInstance;
-import net.minecraft.util.MovementInput;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.LogicalSide;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 public class ElytrianOriginType extends AbstractOriginType {
 
@@ -215,30 +205,18 @@ public class ElytrianOriginType extends AbstractOriginType {
 
     @Override
     public void onEvent(Object event, Origin origin) {
-        /*if (event instanceof EntityViewRenderEvent.CameraSetup) { //
-            onCameraSetup((EntityViewRenderEvent.CameraSetup) event, origin);
-        } else */if (event instanceof LivingEquipmentChangeEvent) {
+        if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        } else if (event instanceof TickEvent.ClientTickEvent) {
-            TickEvent.ClientTickEvent tickEvent = (TickEvent.ClientTickEvent) event;
-            onClientTick(tickEvent, origin);
-            updateRollTarget(tickEvent, origin); //
-        } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
-            onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
         }
 
-        DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientElytrianOriginType.onEvent);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onEvent(event, origin));
     }
 
     @Override
     public void onFirstActivate(Origin origin) {
-
-        if (origin.isServerSide()) return;
-        origin.getTypeDataManager().register(PREV_ROLL, 0F);
-        origin.getTypeDataManager().register(ROLL_FOLLOW_TARGET, 0F);
-        origin.getTypeDataManager().register(PREV_ROLL_PARTIAL_TICKS, 0D);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onFirstActivate(origin));
     }
 
     @Override

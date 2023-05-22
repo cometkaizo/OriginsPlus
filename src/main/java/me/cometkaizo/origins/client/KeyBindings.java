@@ -1,14 +1,20 @@
 package me.cometkaizo.origins.client;
 
-import me.cometkaizo.origins.network.PacketUtils;
 import me.cometkaizo.origins.network.C2SUsePower;
+import me.cometkaizo.origins.network.PacketUtils;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.ChatScreen;
+import net.minecraft.client.gui.screen.inventory.ContainerScreen;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.client.util.InputMappings;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import org.lwjgl.glfw.GLFW;
 
+@OnlyIn(Dist.CLIENT)
 public final class KeyBindings {
 
     public static final String ORIGINS_CATEGORY = "key.categories.origins";
@@ -22,9 +28,20 @@ public final class KeyBindings {
     public static void onKeyPressed(InputEvent.KeyInputEvent event) {
         int keyCode = event.getKey();
         int action = event.getAction();
-        if (action == GLFW.GLFW_PRESS && keyCode == POWER.getKey().getKeyCode()) {
+        if (canUseAction() && action == GLFW.GLFW_PRESS && keyCode == POWER.getKey().getKeyCode()) {
             PacketUtils.sendToServer(new C2SUsePower());
         }
+    }
+
+    private static boolean canUseAction() {
+        Minecraft minecraft = Minecraft.getInstance();
+
+        if (minecraft.player == null) return false;
+
+        boolean chatOpen = minecraft.currentScreen instanceof ChatScreen;
+        boolean containerOpen = minecraft.currentScreen instanceof ContainerScreen<?>;
+
+        return !chatOpen && !containerOpen;
     }
 
     private KeyBindings() {

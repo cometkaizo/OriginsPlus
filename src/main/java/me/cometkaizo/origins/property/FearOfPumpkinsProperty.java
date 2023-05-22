@@ -20,6 +20,7 @@ import net.minecraft.util.math.RayTraceResult;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
 
+@Deprecated
 public class FearOfPumpkinsProperty extends EventInterceptProperty {
     public static final int DEFAULT_RANGE = 5;
     public static final int DEFAULT_PUMPKIN_DAMAGE = 7;

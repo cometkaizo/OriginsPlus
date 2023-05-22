@@ -52,8 +52,7 @@ public class S2CSynchronizeOrigin {
             Origin origin = Origin.getOrigin(player);
 
             if (origin != null) {
-
-                origin.acceptSynchronization(type);
+                origin.acceptSynchronization(player, type);
             } else {
                 Main.LOGGER.error("Invalid synchronization packet: {} does not have origin capability",
                         player.getGameProfile().getName());

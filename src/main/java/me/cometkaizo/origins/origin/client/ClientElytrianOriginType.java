@@ -42,7 +42,15 @@ public class ClientElytrianOriginType {
 
 
 
-    public void onEvent(Object event, Origin origin) {
+    public static void onFirstActivate(Origin origin) {
+        if (origin.isServerSide()) return;
+        origin.getTypeDataManager().register(PREV_ROLL, 0F);
+        origin.getTypeDataManager().register(ROLL_FOLLOW_TARGET, 0F);
+        origin.getTypeDataManager().register(PREV_ROLL_PARTIAL_TICKS, 0D);
+    }
+
+
+    public static void onEvent(Object event, Origin origin) {
         if (event instanceof EntityViewRenderEvent.CameraSetup) {
             onCameraSetup((EntityViewRenderEvent.CameraSetup) event, origin);
         } else if (event instanceof TickEvent.ClientTickEvent) {
@@ -203,10 +211,4 @@ public class ClientElytrianOriginType {
         return 0;
     }
 
-    private static boolean isArmorSlot(EquipmentSlotType slot) {
-        return slot == EquipmentSlotType.HEAD ||
-                slot == EquipmentSlotType.CHEST ||
-                slot == EquipmentSlotType.LEGS ||
-                slot == EquipmentSlotType.FEET;
-    }
 }

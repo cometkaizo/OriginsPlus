@@ -25,7 +25,7 @@ public class OriginCommand {
     public OriginCommand(CommandDispatcher<CommandSource> dispatcher) {
 
         dispatcher.register(
-                Commands.literal("origin")
+                Commands.literal("origin").requires((source) -> source.hasPermissionLevel(2))
                         .then(Commands.literal("set")
                                 .then(Commands.argument("target", EntityArgument.players())
                                         .then(Commands.argument("type", MessageArgument.message()).suggests(this::getTypeSuggestions)

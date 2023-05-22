@@ -4,17 +4,18 @@ import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.network.C2SAcknowledgeSyncOrigin;
 import me.cometkaizo.origins.network.PacketUtils;
 import me.cometkaizo.origins.network.S2CSynchronizeOrigin;
+import me.cometkaizo.origins.origin.client.ClientOrigin;
 import me.cometkaizo.origins.property.Property;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
 import me.cometkaizo.origins.util.TimeTracker;
-import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.nbt.INBT;
 import net.minecraft.server.management.PlayerList;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.util.INBTSerializable;
 import net.minecraftforge.common.util.LazyOptional;
@@ -22,6 +23,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.network.PacketDistributor;
 import net.minecraftforge.fml.server.ServerLifecycleHooks;
@@ -40,9 +42,9 @@ public class Origin implements INBTSerializable<INBT> {
     private PlayerEntity player;
     private boolean isServerSide;
     /**
-     * Whether the {@code player} is referring to {@link Minecraft#player}
+     * Whether the {@code player} is referring to the player instance on the physical client
      */
-    private boolean isMinecraftPlayer;
+    private boolean isPhysicalClient;
 
     protected static final DataKey<TimeTracker> TIME_TRACKER = DataKey.create(TimeTracker.class);
 
@@ -85,14 +87,18 @@ public class Origin implements INBTSerializable<INBT> {
             if (isAboutPlayer(event)) {
                 type.onPlayerSensitiveEvent(event, this);
             }
+        } else {
+            LOGGER.warn("type is null, player: {}", player);
         }
     }
 
     private boolean isAboutPlayer(Event event) {
-        return event instanceof EntityEvent && player.equals(((EntityEvent) event).getEntity()) ||
-                event instanceof TickEvent.ClientTickEvent && isMinecraftPlayer ||
-                event instanceof TickEvent.RenderTickEvent && isMinecraftPlayer ||
-                event instanceof TickEvent.PlayerTickEvent && player.equals(((TickEvent.PlayerTickEvent) event).player);
+        return player != null && (
+                event instanceof EntityEvent && player.equals(((EntityEvent) event).getEntity()) ||
+                event instanceof TickEvent.ClientTickEvent && isPhysicalClient ||
+                event instanceof TickEvent.RenderTickEvent && isPhysicalClient ||
+                event instanceof TickEvent.PlayerTickEvent && player.equals(((TickEvent.PlayerTickEvent) event).player)
+        );
     }
 
     public boolean hasProperty(Object property) {
@@ -159,12 +165,20 @@ public class Origin implements INBTSerializable<INBT> {
         syncCooldown.set(0);
     }
 
-    public void acceptSynchronization(OriginType type) {
-        if (type == null) {
+    public void acceptSynchronization(PlayerEntity player, OriginType type) {
+        if (player == null) {
+            LOGGER.error("Invalid synchronization packet: no player");
+            return;
+        } if (player instanceof ServerPlayerEntity) {
+            LOGGER.error("Invalid synchronization packet: incorrect player type: {}", player);
+            return;
+        } if (type == null) {
             LOGGER.error("Invalid synchronization packet: no type");
             return;
         }
+        setPlayer(player);
         setType(type);
+        LOGGER.info("Accepted synchronization packet, player: {}, type: {}", player, type);
         PacketUtils.CHANNEL.send(PacketDistributor.SERVER.noArg(), new C2SAcknowledgeSyncOrigin());
     }
 
@@ -173,7 +187,7 @@ public class Origin implements INBTSerializable<INBT> {
         CompoundNBT nbt = new CompoundNBT();
         nbt.putString("origin_type", String.valueOf(OriginTypes.getKey(type)));
 
-        String uuid = PlayerEntity.getUUID(player.getGameProfile()).toString();
+        String uuid = player != null ? PlayerEntity.getUUID(player.getGameProfile()).toString() : "null";
         nbt.putString("origin_player", uuid);
 
         INBT dataManager = this.originData.serializeNBT();
@@ -192,9 +206,9 @@ public class Origin implements INBTSerializable<INBT> {
         deserializeData(compoundNBT.get("origin_data"));
     }
 
-    private void deserializeData(INBT dataManager) {
-        if (dataManager != null) this.originData.deserializeNBT(dataManager);
-        else LOGGER.warn("No dataManager found");
+    private void deserializeData(INBT data) {
+        if (data != null) this.originData.deserializeNBT(data);
+        else LOGGER.warn("No data found");
     }
 
     private void deserializePlayer(String playerUUID) {
@@ -202,12 +216,13 @@ public class Origin implements INBTSerializable<INBT> {
         else if (ServerLifecycleHooks.getCurrentServer().isDedicatedServer()) {
             PlayerList playerList = ServerLifecycleHooks.getCurrentServer().getPlayerList();
 
-            setPlayer(playerList.getPlayerByUUID(UUID.fromString(playerUUID)));
-
-            if (player == null) LOGGER.warn("Could not find player with UUID '{}'", playerUUID);
+            ServerPlayerEntity player = playerList.getPlayerByUUID(UUID.fromString(playerUUID));
+            if (player != null) setPlayer(player);
+            else LOGGER.error("Could not find player with UUID '{}'", playerUUID);
+            LOGGER.info("All players: {}, player count: {}, online: {}", playerList.getPlayers(), playerList.getCurrentPlayerCount(), playerList.getOnlinePlayerNames());
         } else {
             PlayerList playerList = ServerLifecycleHooks.getCurrentServer().getPlayerList();
-            LOGGER.warn("All players: {}, player count: {}, online: {}", playerList.getPlayers(), playerList.getCurrentPlayerCount(), playerList.getOnlinePlayerNames());
+            LOGGER.info("All players: {}, player count: {}, online: {}", playerList.getPlayers(), playerList.getCurrentPlayerCount(), playerList.getOnlinePlayerNames());
         }
     }
 
@@ -232,6 +247,10 @@ public class Origin implements INBTSerializable<INBT> {
         return isServerSide;
     }
 
+    public boolean isPhysicalClient() {
+        return isPhysicalClient;
+    }
+
     public DataManager getDataManager() {
         return originData;
     }
@@ -247,6 +266,7 @@ public class Origin implements INBTSerializable<INBT> {
     }
 
     public void setType(OriginType type) {
+        Objects.requireNonNull(type, "Type cannot be null");
         if (this.type == type) return;
         if (this.type != null) this.type.onDeactivate(this);
         this.type = type;
@@ -255,8 +275,11 @@ public class Origin implements INBTSerializable<INBT> {
     }
 
     private void setPlayer(PlayerEntity player) {
+        Objects.requireNonNull(player, "Player cannot be null");
         this.player = player;
         this.isServerSide = player instanceof ServerPlayerEntity;
-        this.isMinecraftPlayer = Minecraft.getInstance().player != null && player.getGameProfile().equals(Minecraft.getInstance().player.getGameProfile());
+        this.isPhysicalClient = false;
+        Boolean isPhysicalClient = DistExecutor.unsafeCallWhenOn(Dist.CLIENT, () -> () -> ClientOrigin.isPhysicalClient(this.player));
+        if (isPhysicalClient != null) this.isPhysicalClient = isPhysicalClient;
     }
 }

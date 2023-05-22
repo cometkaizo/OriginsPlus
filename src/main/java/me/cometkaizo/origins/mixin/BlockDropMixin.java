@@ -1,6 +1,5 @@
 package me.cometkaizo.origins.mixin;
 
-import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.origin.EnderianOriginType;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.CollUtils;
@@ -39,6 +38,7 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import java.util.List;
 import java.util.Map;
 
+import static me.cometkaizo.origins.util.ClassUtils.getFieldOfType;
 import static me.cometkaizo.origins.util.ClassUtils.getFieldOrThrow;
 
 public final class BlockDropMixin {
@@ -48,8 +48,6 @@ public final class BlockDropMixin {
 
     @Mixin(MatchTool.class)
     public static abstract class MixedMatchTool {
-
-        private static final String ITEM_STACK_OWNER = Main.MOD_ID + "_owner";
 
         @Inject(at = @At(value = "INVOKE",
                 target = "Lnet/minecraft/advancements/criterion/ItemPredicate;test(Lnet/minecraft/item/ItemStack;)Z",
@@ -61,13 +59,7 @@ public final class BlockDropMixin {
             Entity entity = lootContext.get(LootParameters.THIS_ENTITY);
             if (tool == null) return;
 
-            Origin origin = Origin.getOrigin(entity);/*
-            if (origin != null) {
-                for (PseudoEnchantmentProperty property : origin.getProperties(PseudoEnchantmentProperty.class)) {
-                    property.injectEnchantmentInTool(tool);
-                }
-                if (entity instanceof PlayerEntity) tool.getOrCreateTag().putString(ITEM_STACK_OWNER, ((PlayerEntity) entity).getGameProfile().getName());
-            }*/
+            Origin origin = Origin.getOrigin(entity);
             if (origin != null && origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH)) {
                 CompoundNBT data = tool.getOrCreateTag();
                 data.putBoolean(ORIGIN_SILK_TOUCH, true);
@@ -78,11 +70,8 @@ public final class BlockDropMixin {
     @Mixin(ItemPredicate.class)
     public static class MixedItemPredicate {
 
-        private static final String ITEM_STACK_OWNER = Main.MOD_ID + "_owner";
-        private static final String ENCHANTMENT_PREDICATE_ENCH_FIELD = "enchantment";
-        private static final String ENCHANTMENT_PREDICATE_LEVEL_FIELD = "levels";
-        private static final String INT_BOUND_MIN_FIELD = "minSquared";
-        private static final String INT_BOUND_MAX_FIELD = "maxSquared";
+        private static final String INT_BOUND_MIN_FIELD = "field_211348_f";
+        private static final String INT_BOUND_MAX_FIELD = "field_211349_g";
 
         @Inject(at = @At(value = "RETURN", ordinal = 7),
                 method = "test",
@@ -94,24 +83,13 @@ public final class BlockDropMixin {
                                        EnchantmentPredicate[] var3,
                                        int var4,
                                        int var5,
-                                       EnchantmentPredicate enchantmentpredicate) {/*
-            CompoundNBT data = tool.getOrCreateTag();
-            if (!data.contains(ITEM_STACK_OWNER)) return;
-            String ownerUsername = data.getString(ITEM_STACK_OWNER);
-            PlayerEntity player = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayerByUsername(ownerUsername);
-
-            Origin origin = Origin.getOrigin(player);
-            if (origin != null) {
-                for (PseudoEnchantmentProperty property : origin.getProperties(PseudoEnchantmentProperty.class)) {
-                    property.injectValidation(enchantmentpredicate, tool, info);
-                }
-            }*/
+                                       EnchantmentPredicate enchantmentpredicate) {
 
             if (tool == null) return;
             if (EnchantmentHelper.getEnchantmentLevel(Enchantments.FORTUNE, tool) > 0) return;
 
-            Enchantment enchantment = (Enchantment) getFieldOrThrow(ENCHANTMENT_PREDICATE_ENCH_FIELD, enchantmentpredicate);
-            MinMaxBounds.IntBound bound = (MinMaxBounds.IntBound) getFieldOrThrow(ENCHANTMENT_PREDICATE_LEVEL_FIELD, enchantmentpredicate);
+            Enchantment enchantment = getFieldOfType(Enchantment.class, enchantmentpredicate);
+            MinMaxBounds.IntBound bound = getFieldOfType(MinMaxBounds.IntBound.class, enchantmentpredicate);
             Long boundMinSqr = (Long) getFieldOrThrow(INT_BOUND_MIN_FIELD, bound);
             Long boundMaxSqr = (Long) getFieldOrThrow(INT_BOUND_MAX_FIELD, bound);
 

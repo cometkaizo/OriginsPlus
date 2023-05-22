@@ -2,6 +2,7 @@ package me.cometkaizo.origins.util;
 
 import javax.annotation.Nonnull;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class ClassUtils {
@@ -28,5 +29,35 @@ public class ClassUtils {
         } catch (IllegalAccessException e) {
             throw new UnsupportedOperationException("Could not access field '" + fieldName + "' in " + clazz, e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T getFieldOfType(Class<T> fieldType, @Nonnull Object instance) {
+        try {
+            for (Field field : instance.getClass().getDeclaredFields()) {
+                if (field.getType() == fieldType) {
+                    field.setAccessible(true);
+                    return (T) field.get(instance);
+                }
+            }
+        } catch (IllegalAccessException e) {
+            throw new UnsupportedOperationException("Could not access field of type " + fieldType + " in " + instance.getClass(), e);
+        }
+        throw new UnsupportedOperationException("No field of type " + fieldType + " in " + instance.getClass() + ", all fields: " + Arrays.toString(instance.getClass().getDeclaredFields()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T getFieldOfType(Class<T> fieldType, @Nonnull Class<?> clazz) {
+        try {
+            for (Field field : clazz.getDeclaredFields()) {
+                if (field.getType() == fieldType) {
+                    field.setAccessible(true);
+                    return (T) field.get(null);
+                }
+            }
+        } catch (IllegalAccessException e) {
+            throw new UnsupportedOperationException("Could not access field of type " + fieldType + " in " + clazz, e);
+        }
+        throw new UnsupportedOperationException("No field of type " + fieldType + " in " + clazz + ", all fields: " + Arrays.toString(clazz.getDeclaredFields()));
     }
 }
