@@ -50,28 +50,6 @@ public class EnderianOriginType extends AbstractOriginType {
     public static final int WATER_DAMAGE = 3;
     public static final float ENDERMAN_AGGRO_RANGE = 10;
     public static final String ENDERMAN_NO_AGGRO_LIST_KEY = EnderianOriginType.class.getName() + "_enderman_no_aggro";
-    /*
-    public static final ActionOnBreakBlockProperty NO_BLOCK_EXP_WITHOUT_FORTUNE = new ActionOnBreakBlockProperty.Builder()
-            .withPlayerSensitiveActionForExp(Block.class, (exp, origin) -> isPlayerHoldingFortuneTool(origin) ? exp : 0).build();
-    public static final ActionOnItemRightClickAirProperty THROW_PEARL_ON_EMPTY_CLICK = new ActionOnItemRightClickAirProperty.Builder()
-            .withPlayerSensitiveActionForItem(Items.AIR, (__, origin) -> tryThrowPearl(origin)).build();
-    public static final ActionOnActionKeyProperty THROW_PEARL_ON_HOTKEY = new ActionOnActionKeyProperty(EnderianOriginType::tryThrowPearl);
-    public static final EventInterceptProperty NO_PEARL_DAMAGE = new EventInterceptProperty.Builder()
-            .withPlayerSensitiveAction(EntityTeleportEvent.EnderPearl.class, (event, origin) -> event.setAttackDamage(0))
-            .withPlayerSensitiveSound(EntityTeleportEvent.EnderPearl.class, SoundEvents.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.7F, 1).build();
-    public static final ActionOnItemRightClickProperty INFINITE_ENDER_PEARLS = new ActionOnItemRightClickProperty.Builder()
-            .withPlayerSensitiveAction(Items.ENDER_PEARL, (event, origin) -> {
-                if (!origin.getPlayer().abilities.isCreativeMode)
-                    event.getItemStack().grow(1);
-            }).build();
-    public static final WaterSensitiveProperty WATER_SENSITIVITY = new WaterSensitiveProperty.Builder().build();
-    public static final FearOfPumpkinsProperty FEAR_OF_PUMPKINS = new FearOfPumpkinsProperty.Builder().build();
-    public static final SpeciesProperty ENDERMAN_SPECIES = new SpeciesProperty.Builder(EntityType.ENDERMAN)
-            .setRallyRadius(ENDERMAN_AGGRO_RANGE).build();
-    public static final ReachProperty REACH_PROPERTY = new ReachProperty(8, true);
-    public static final PseudoEnchantmentProperty SILK_TOUCH_WITHOUT_FORTUNE = new PseudoEnchantmentProperty.Builder()
-            .withEnchantment(Enchantments.SILK_TOUCH)
-            .withCounterEnchantment(Enchantments.FORTUNE).build();*/
 
     public static boolean hasPearlCooldown(Origin origin) {
         return origin.getPlayer().getCooldownTracker().hasCooldown(Items.ENDER_PEARL);
@@ -86,22 +64,6 @@ public class EnderianOriginType extends AbstractOriginType {
         SILK_TOUCH,
         EXTRA_ENTITY_REACH
     }
-
-/*
-    public EnderianOriginType() {
-        super("Enderian",
-                NO_BLOCK_EXP_WITHOUT_FORTUNE,
-                SILK_TOUCH_WITHOUT_FORTUNE,
-                THROW_PEARL_ON_EMPTY_CLICK,
-                THROW_PEARL_ON_HOTKEY,
-                NO_PEARL_DAMAGE,
-                INFINITE_ENDER_PEARLS,
-                WATER_SENSITIVITY,
-                FEAR_OF_PUMPKINS,
-                ENDERMAN_SPECIES,
-                REACH_PROPERTY
-        );
-    }*/
 
     public static void throwEnderPearl(Origin origin) {
         PlayerEntity player = origin.getPlayer();

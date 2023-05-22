@@ -16,14 +16,17 @@ import net.minecraft.util.DamageSource;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.living.LivingFallEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.CriticalHitEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
@@ -44,6 +47,11 @@ public class PhoenixOriginType extends AbstractOriginType {
     public static final int WATER_DAMAGE = 2;
     public static final TimeTracker SKY_EFFECTS_TIME_TRACKER = new TimeTracker();
     public static final Color SKY_DEATH_COLOR = new Color(112, 14, 10);
+    public static final double FLAP_AMPLIFIER = 0.7;
+    public static final double BOOST_AMPLIFIER = 0.4;
+    public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.4;
+    public static final float BOOST_EXHAUSTION = 0.08F;
+    public static final float FIRE_TICK_FLY_SPEED_AMP = 0.022F;
     public static final ParticleSpawner FIRE_POWER_PARTICLE_SPAWNER = new ParticleSpawner()
             .withParticles(ParticleTypes.SMOKE, ParticleTypes.FLAME)
             .withRandomCount(10, 20)
@@ -101,30 +109,6 @@ public class PhoenixOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onEvent(Object event, Origin origin) {
-        if (event instanceof CriticalHitEvent) {
-            onHit((CriticalHitEvent) event, origin);
-        } else if (event instanceof LivingAttackEvent) {
-            onLivingAttacked((LivingAttackEvent) event, origin);
-        } else if (event instanceof LivingHurtEvent) {
-            onLivingHurt((LivingHurtEvent) event, origin);
-        } else if (event instanceof TickEvent.PlayerTickEvent) {
-            onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        } else if (event instanceof LivingDeathEvent) {
-            onLivingDeath((LivingDeathEvent) event, origin);
-        } else if (event instanceof EntityViewRenderEvent.FogColors) {
-            onFogColor((EntityViewRenderEvent.FogColors) event);
-        }
-    }
-
-    @Override
-    public void onPlayerSensitiveEvent(Object event, Origin origin) {
-        super.onPlayerSensitiveEvent(event, origin);
-
-        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onPlayerSensitiveEvent(event, origin));
-    }
-
-    @Override
     public void performAction(Origin origin) {
         TimeTracker cooldownTracker = origin.getTimeTracker();
 
@@ -151,6 +135,68 @@ public class PhoenixOriginType extends AbstractOriginType {
         }
 
         SoundUtils.playSound(player, SoundEvents.ITEM_FIRECHARGE_USE, SoundCategory.PLAYERS);
+    }
+
+    @Override
+    public void onEvent(Object event, Origin origin) {
+        if (event instanceof CriticalHitEvent) {
+            onHit((CriticalHitEvent) event, origin);
+        } else if (event instanceof LivingAttackEvent) {
+            onLivingAttacked((LivingAttackEvent) event, origin);
+        } else if (event instanceof LivingHurtEvent) {
+            onLivingHurt((LivingHurtEvent) event, origin);
+        } else if (event instanceof TickEvent.PlayerTickEvent) {
+            onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
+        } else if (event instanceof LivingDeathEvent) {
+            onLivingDeath((LivingDeathEvent) event, origin);
+        } else if (event instanceof EntityViewRenderEvent.FogColors) {
+            onFogColor((EntityViewRenderEvent.FogColors) event);
+        }
+    }
+
+    @Override
+    public void onPlayerSensitiveEvent(Object event, Origin origin) {
+        super.onPlayerSensitiveEvent(event, origin);
+        if (event instanceof Event && ((Event) event).isCanceled()) return;
+        if (event instanceof LivingFallEvent) {
+            onLivingLand(origin);
+        } else if (event == ElytrianOriginType.Action.UP_BOOST) {
+            boostUp(origin);
+        } else if (event == ElytrianOriginType.Action.FORWARD_BOOST) {
+            boostForward(origin);
+        }
+
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onPlayerSensitiveEvent(event, origin));
+    }
+
+    private void onLivingLand(Origin origin) {
+        origin.getTimeTracker().remove(Cooldown.UP_BOOST);
+    }
+
+    public static void boostUp(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        float flapAmount = (-player.rotationPitch + 90) / 180;
+        double yMotion = FLAP_AMPLIFIER * flapAmount;
+
+        player.setMotion(player.getMotion().add(0, yMotion, 0));
+        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
+
+        origin.getTimeTracker().addTimer(PhoenixOriginType.Cooldown.UP_BOOST);
+        player.addExhaustion(BOOST_EXHAUSTION);
+    }
+
+    public static void boostForward(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        Vector3d boostAmount = player.getLookVec();
+        float fireSpeedBoost = Math.max(origin.getPlayer().getFireTimer(), 0) * FIRE_TICK_FLY_SPEED_AMP + 1;
+        Vector3d boost = boostAmount.scale(BOOST_AMPLIFIER).scale(fireSpeedBoost);
+        Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
+
+        player.setMotion(oldMotion.add(boost));
+        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
+
+        origin.getTimeTracker().addTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST);
+        player.addExhaustion(BOOST_EXHAUSTION);
     }
 
     public void onPlayerTick(TickEvent.PlayerTickEvent event, Origin origin) {

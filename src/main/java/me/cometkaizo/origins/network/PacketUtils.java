@@ -19,22 +19,21 @@ public class PacketUtils {
     }
 
     public static void init() {
-        SimpleChannel channel = NetworkRegistry.ChannelBuilder
+
+        CHANNEL = NetworkRegistry.ChannelBuilder
                 .named(new ResourceLocation(Main.MOD_ID, "messages"))
                 .networkProtocolVersion(() -> "1.0")
                 .clientAcceptedVersions(s -> true)
                 .serverAcceptedVersions(s -> true)
                 .simpleChannel();
 
-        CHANNEL = channel;
-
         // register all messages here, or they will crash the game when trying to send
 
-        channel.messageBuilder(S2CSynchronizeOrigin.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
+        CHANNEL.messageBuilder(S2CSynchronizeOrigin.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CSynchronizeOrigin::toBytes).decoder(S2CSynchronizeOrigin::new)
                 .consumer(S2CSynchronizeOrigin::handle).add();
 
-        channel.messageBuilder(C2SUsePower.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+        CHANNEL.messageBuilder(C2SUsePower.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SUsePower::toBytes).decoder(C2SUsePower::new)
                 .consumer(C2SUsePower::handle).add();
         CHANNEL.messageBuilder(C2SAcknowledgeSyncOrigin.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
@@ -43,6 +42,9 @@ public class PacketUtils {
         CHANNEL.messageBuilder(C2SThrowEnderianPearl.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SThrowEnderianPearl::toBytes).decoder(C2SThrowEnderianPearl::new)
                 .consumer(C2SThrowEnderianPearl::handle).add();
+        CHANNEL.messageBuilder(C2SElytrianAction.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SElytrianAction::toBytes).decoder(C2SElytrianAction::new)
+                .consumer(C2SElytrianAction::handle).add();
 
 
         LOGGER.info("Initialized PacketUtils on Channel {}", CHANNEL);

@@ -87,8 +87,14 @@ public class Origin implements INBTSerializable<INBT> {
             if (isAboutPlayer(event)) {
                 type.onPlayerSensitiveEvent(event, this);
             }
-        } else {
-            LOGGER.warn("type is null, player: {}", player);
+        }
+    }
+
+    public void onEvent(Object event) {
+        if (event instanceof Event) onEvent((Event) event);
+        else if (type != null) {
+            tryOnFirstActivate();
+            type.onEvent(event, this);
         }
     }
 

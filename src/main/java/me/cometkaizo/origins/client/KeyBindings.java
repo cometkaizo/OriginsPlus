@@ -1,8 +1,11 @@
 package me.cometkaizo.origins.client;
 
+import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.network.C2SUsePower;
 import me.cometkaizo.origins.network.PacketUtils;
+import me.cometkaizo.origins.origin.Origin;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.inventory.ContainerScreen;
 import net.minecraft.client.settings.KeyBinding;
@@ -28,12 +31,25 @@ public final class KeyBindings {
     public static void onKeyPressed(InputEvent.KeyInputEvent event) {
         int keyCode = event.getKey();
         int action = event.getAction();
-        if (canUseAction() && action == GLFW.GLFW_PRESS && keyCode == POWER.getKey().getKeyCode()) {
-            PacketUtils.sendToServer(new C2SUsePower());
+        if (canPerformAction() && action == GLFW.GLFW_PRESS && keyCode == POWER.getKey().getKeyCode()) {
+            performAction();
         }
     }
 
-    private static boolean canUseAction() {
+    private static void performAction() {
+        ClientPlayerEntity player = Minecraft.getInstance().player;
+        if (player == null) {
+            Main.LOGGER.warn("KeyInputEvent received when Minecraft#player is null");
+            return;
+        }
+
+        PacketUtils.sendToServer(new C2SUsePower());
+
+        Origin origin = Origin.getOrigin(player);
+        if (origin != null) origin.performAction();
+    }
+
+    private static boolean canPerformAction() {
         Minecraft minecraft = Minecraft.getInstance();
 
         if (minecraft.player == null) return false;

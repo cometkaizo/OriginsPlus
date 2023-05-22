@@ -2,6 +2,7 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.origin.client.ClientElytrianOriginType;
 import me.cometkaizo.origins.potion.OriginEffects;
+import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
@@ -11,12 +12,16 @@ import net.minecraft.item.ArmorMaterial;
 import net.minecraft.item.IArmorMaterial;
 import net.minecraft.item.Item;
 import net.minecraft.potion.EffectInstance;
+import net.minecraft.util.SoundCategory;
+import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
+import net.minecraftforge.event.entity.living.LivingFallEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.fml.LogicalSide;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,68 +31,14 @@ import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 public class ElytrianOriginType extends AbstractOriginType {
 
     public static final Logger LOGGER = LogManager.getLogger();
-    public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;/*
-    public static final ActionOnItemRightClickAirProperty FORWARD_BOOST_ON_EMPTY_CLICK = new ActionOnItemRightClickAirProperty.Builder()
-            .withPlayerSensitiveAction(Item.class, (__, origin) -> tryBoostForward(origin)).build();
-    public static final EventInterceptProperty NO_HEAVY_ARMOR = new EventInterceptProperty.Builder()
-            .withPlayerSensitiveAction(LivingEquipmentChangeEvent.class, (event, origin) -> {
-                if (!isArmorSlot(event.getSlot())) return;
-                PlayerEntity player = origin.getPlayer();
-
-                int updatedArmorValue = (int) getUpdatedArmorValue(event, player);
-                int amplifier = getWeaknessAmplifier(updatedArmorValue);
-
-                updateFlightWeakness(player, amplifier);
-            }).build();
-    private static final EventInterceptProperty UPWARD_BOOST_ON_MIDAIR_JUMP = new EventInterceptProperty.Builder()
-            .withAction(TickEvent.ClientTickEvent.class, (event, origin) -> {
-                if (event.phase == TickEvent.Phase.START) return;
-                if (origin.isServerSide()) return;
-
-                ClientPlayerEntity player = Minecraft.getInstance().player;
-                if (!origin.getPlayer().equals(player)) return;
-
-                if (!player.isElytraFlying()) return;
-                MovementInput input = player.movementInput;
-                TimeTracker cooldownTracker = origin.getTimeTracker();
-
-                if (input.jump && !cooldownTracker.hasCooldownOf(Cooldown.class)) {
-                    boostUp(origin, player, cooldownTracker);
-                }
-            }).build();
-    public static final ActionOnPlayerTickProperty FLIGHT_STRENGTH = new ActionOnPlayerTickProperty.Builder()
-            .withPlayerSensitiveAction((event, origin) -> {
-                if (event.side == LogicalSide.CLIENT) return;
-                if (event.phase == TickEvent.Phase.START) return;
-                PlayerEntity player = origin.getPlayer();
-
-                if (player.isElytraFlying()) {
-                    player.addPotionEffect(new EffectInstance(OriginEffects.FLIGHT_STRENGTH.get(), Integer.MAX_VALUE, 0));
-                } else {
-                    player.removePotionEffect(OriginEffects.FLIGHT_STRENGTH.get());
-                }
-            }).build();
-    public static final ActionOnPlayerTickProperty CLAUSTROPHOBIA = new ActionOnPlayerTickProperty.Builder()
-            .withPlayerSensitiveAction((event, origin) -> {
-                if (event.side == LogicalSide.CLIENT) return;
-                if (event.phase == TickEvent.Phase.START) return;
-                PlayerEntity player = origin.getPlayer();
-
-                if (!player.isElytraFlying() && player.isOnGround() && isUnderLowCeiling(player)) {
-                    player.addPotionEffect(new EffectInstance(OriginEffects.FLIGHT_WEAKNESS.get(), FLIGHT_WEAKNESS_DURATION, 0));
-                }
-            }).build();
-
-    private static void tryBoostForward(Origin origin) {
-        if (origin.isServerSide()) return;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-        ClientPlayerEntity player = (ClientPlayerEntity) origin.getPlayer();
-        if (!player.isElytraFlying()) return;
-
-        if (!cooldownTracker.hasCooldownOf(Cooldown.class)) {
-            boostForward(origin, player, cooldownTracker);
-        }
-    }*/
+    public static final int MAX_ARMOR_VALUE = 20;
+    public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;
+    public static final double FLAP_AMPLIFIER = 1.1;
+    public static final double BOOST_AMPLIFIER = 0.85;
+    public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.3;
+    public static final float BOOST_EXHAUSTION = 0.06F;
+    public static final float SNEAK_BOOST_REDUCTION = 0.3F;
+    public static final float XP_BONUS_AMP = 0.05F;
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
@@ -112,16 +63,11 @@ public class ElytrianOriginType extends AbstractOriginType {
             return duration;
         }
     }
-/*
-    public ElytrianOriginType() {
-        super("Elytrian",
-                FORWARD_BOOST_ON_EMPTY_CLICK,
-                UPWARD_BOOST_ON_MIDAIR_JUMP,
-                NO_HEAVY_ARMOR,
-                FLIGHT_STRENGTH,
-                CLAUSTROPHOBIA
-        );
-    }*/
+
+    public enum Action {
+        UP_BOOST,
+        FORWARD_BOOST
+    }
 
     private static int getWeaknessAmplifier(int armorValue) {
         return (armorValue - 13) / 2;
@@ -192,15 +138,30 @@ public class ElytrianOriginType extends AbstractOriginType {
 
     private static boolean isUnderLowCeiling(PlayerEntity player) {
         World level = player.world;
-        Vector3d twoBlocksAbove = player.getPositionVec().add(0, 2, 0);
-        Vector3d threeBlocksAbove = player.getPositionVec().add(0, 3, 0);
+        BlockPos oneBlockAbove = player.getPosition().up(1);
+        BlockPos twoBlocksAbove = player.getPosition().up(2);
+        BlockPos threeBlocksAbove = player.getPosition().up(3);
 
-        return getBlockState(level, twoBlocksAbove).isSolid() ||
+        return getBlockState(level, oneBlockAbove).isSolid() ||
+                getBlockState(level, twoBlocksAbove).isSolid() ||
                 getBlockState(level, threeBlocksAbove).isSolid();
     }
 
-    private static BlockState getBlockState(World level, Vector3d position) {
-        return level.getBlockState(new BlockPos(position));
+    private static BlockState getBlockState(World level, BlockPos position) {
+        return level.getBlockState(position);
+    }
+
+    @Override
+    public void onPlayerSensitiveEvent(Object event, Origin origin) {
+        super.onPlayerSensitiveEvent(event, origin);
+        if (event instanceof Event && ((Event) event).isCanceled()) return;
+        if (event instanceof LivingFallEvent) {
+            onLivingLand(origin);
+        }
+    }
+
+    private void onLivingLand(Origin origin) {
+        origin.getTimeTracker().remove(Cooldown.UP_BOOST);
     }
 
     @Override
@@ -209,6 +170,10 @@ public class ElytrianOriginType extends AbstractOriginType {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
+        } else if (event == Action.UP_BOOST) {
+            boostUp(origin);
+        } else if (event == Action.FORWARD_BOOST) {
+            boostForward(origin);
         }
 
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onEvent(event, origin));
@@ -221,7 +186,44 @@ public class ElytrianOriginType extends AbstractOriginType {
 
     @Override
     public void performAction(Origin origin) {
+        boostUp(origin);
+    }
 
+    public static void boostUp(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        float flapAmount = (-player.rotationPitch + 90) / 180;
+        float lightness = getLightness(getArmorValue(origin.getPlayer()));
+
+        double yMotion = flapAmount * FLAP_AMPLIFIER * lightness;
+        player.setMotion(player.getMotion().add(0, yMotion, 0));
+
+        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
+        origin.getTimeTracker().addTimer(ElytrianOriginType.Cooldown.UP_BOOST);
+        player.addExhaustion(BOOST_EXHAUSTION);
+    }
+
+    public static void boostForward(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        Vector3d boostAmount = player.getLookVec();
+        float lightness = getLightness(getArmorValue(origin.getPlayer()));
+        float xpBonus = Math.max(1F, player.experienceLevel * XP_BONUS_AMP);
+        float shiftReduction = player.isSneaking() ? SNEAK_BOOST_REDUCTION : 1;
+
+        Vector3d boost = boostAmount
+                .scale(BOOST_AMPLIFIER)
+                .scale(lightness)
+                .scale(xpBonus)
+                .scale(shiftReduction);
+        Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
+        player.setMotion(oldMotion.add(boost));
+
+        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
+        origin.getTimeTracker().addTimer(ElytrianOriginType.Cooldown.FORWARD_BOOST);
+        player.addExhaustion(BOOST_EXHAUSTION);
+    }
+
+    protected static float getLightness(float armorValue) {
+        return 1 - armorValue / MAX_ARMOR_VALUE;
     }
 
     @Override

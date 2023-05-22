@@ -17,7 +17,7 @@ apply plugin: 'org.spongepowered.mixin' //xn
 
 // xn for mixins: https://github.com/Keksuccino/mixin_basics_tutorial_repo/blob/main/build.gradle
 
-version = '1.16.5-0.5.5'
+version = '1.16.5-0.5.6'
 group = 'me.cometkaizo.origins' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = 'origins'
 

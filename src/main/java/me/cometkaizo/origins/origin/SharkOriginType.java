@@ -4,9 +4,7 @@ import me.cometkaizo.origins.origin.client.ClientSharkOriginType;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.*;
-import net.minecraft.potion.Potion;
-import net.minecraft.potion.PotionUtils;
-import net.minecraft.potion.Potions;
+import net.minecraft.potion.*;
 import net.minecraft.tags.FluidTags;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
@@ -20,6 +18,7 @@ public class SharkOriginType extends AbstractOriginType {
     public static final Logger LOGGER = LogManager.getLogger();
 
     public static final Object WATER_BREATHING_PROPERTY = new Object();
+    public static final int WATER_BOTTLE_WATER_BREATHING_DUR = 5 * 20;
 
     public enum Cooldown implements TimeTracker.Timer {
         RIPTIDE_BOOST(1.25 * 20);
@@ -78,7 +77,7 @@ public class SharkOriginType extends AbstractOriginType {
         PlayerEntity player = origin.getPlayer();
 
         if (isWaterPotion(event.getItem())) {
-            player.setAir(player.getMaxAir());
+            applyWaterBottleEffects(player);
         } else if (isSeafood(event.getItem())) {
             if (!event.getItem().isFood()) return;
             Food consumedFood = event.getItem().getItem().getFood();
@@ -86,6 +85,11 @@ public class SharkOriginType extends AbstractOriginType {
 
             player.getFoodStats().addStats(consumedFood.getHealing(), consumedFood.getSaturation());
         }
+    }
+
+    private static void applyWaterBottleEffects(PlayerEntity player) {
+        player.setAir(player.getMaxAir());
+        player.addPotionEffect(new EffectInstance(Effects.WATER_BREATHING, WATER_BOTTLE_WATER_BREATHING_DUR));
     }
 
     private static boolean isWaterPotion(ItemStack itemStack) {
@@ -104,7 +108,8 @@ public class SharkOriginType extends AbstractOriginType {
                 item == Items.PUFFERFISH ||
                 item == Items.TROPICAL_FISH ||
                 item == Items.COOKED_COD ||
-                item == Items.COOKED_SALMON;
+                item == Items.COOKED_SALMON ||
+                item == Items.DRIED_KELP;
     }
 
 }
