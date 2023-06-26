@@ -63,7 +63,7 @@ public class ClientEnderianOriginType {
     }
 
     private static void updateBarOverlay(ClientPlayerEntity player) {
-        barOverlay.setBarPercent(1 - player.getCooldownTracker().getCooldown(Items.ENDER_PEARL, 0) / ENDER_PEARL_COOLDOWN_TIME);
+        barOverlay.setBarPercent(1 - player.getCooldownTracker().getCooldown(Items.ENDER_PEARL, 0));
     }
 
     private static void tryApplyPumpkinDamage(Origin origin, ClientPlayerEntity player) {

@@ -2,6 +2,7 @@ package me.cometkaizo.origins.mixin;
 
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.SharkOriginType;
+import net.minecraft.client.gui.AbstractGui;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -15,6 +16,7 @@ import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.client.gui.ForgeIngameGui;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -38,8 +40,8 @@ public final class WaterBreathingMixin {
 
         @Redirect(at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;areEyesInFluid(Lnet/minecraft/tags/ITag;)Z"), method = "baseTick")
         protected boolean isSubmergedInProxy(LivingEntity entity, ITag<Fluid> fluidTag) {
-            Origin origin = Origin.getOrigin(entity);
             boolean submerged = areEyesInFluid(fluidTag);
+            Origin origin = Origin.getOrigin(entity);
             if (origin != null) {
                 return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
             }
@@ -97,5 +99,20 @@ public final class WaterBreathingMixin {
             }
             return areEyesInFluid(fluidTag);
         }
+    }
+
+    @Mixin(ForgeIngameGui.class)
+    public static abstract class MixedForgeIngameGui extends AbstractGui {
+
+        @Redirect(method = "renderAir", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/PlayerEntity;areEyesInFluid(Lnet/minecraft/tags/ITag;)Z"))
+        protected boolean isSubmergedInProxy(PlayerEntity player, ITag<Fluid> fluidTag) {
+            boolean submerged = player.areEyesInFluid(fluidTag);
+            Origin origin = Origin.getOrigin(player);
+            if (origin != null) {
+                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
+            }
+            return submerged;
+        }
+
     }
 }

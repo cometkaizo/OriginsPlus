@@ -62,6 +62,8 @@
   "origins.shark_origin.gills.desc": "You can breathe underwater, but not on land. When raining, you can get out of water for a short time.",
   "origins.shark_origin.mobility.title": "Fins",
   "origins.shark_origin.mobility.desc": "You can travel incredibly fast underwater, if you know how.",
+  "origins.shark_origin.riptide.title": "Jet-stream",
+  "origins.shark_origin.riptide.desc": "You can charge up a riptide move when swimming.",
   "origins.shark_origin.trident.title": "Trident Expert",
   "origins.shark_origin.trident.desc": "You deal more damage with tridents and you can use them faster.",
   "origins.shark_origin.water_vision.title": "Wet Eyes",

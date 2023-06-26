@@ -27,7 +27,8 @@
     "ElytraMixin$MixedElytraModel",
     "ElytraMixin$MixedPlayerModel",
     "EntityReachMixin$MixedPlayerController",
-    "SkyColorMixin$MixedClientWorld"
+    "SkyColorMixin$MixedClientWorld",
+    "WaterBreathingMixin$MixedForgeIngameGui"
   ],
   "injectors": {
     "defaultRequire": 1

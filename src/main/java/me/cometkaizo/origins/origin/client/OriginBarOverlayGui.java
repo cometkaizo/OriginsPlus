@@ -3,6 +3,7 @@ package me.cometkaizo.origins.origin.client;
 import com.mojang.blaze3d.matrix.MatrixStack;
 import me.cometkaizo.origins.Main;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.gui.AbstractGui;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.MathHelper;
@@ -24,6 +25,10 @@ public class OriginBarOverlayGui extends AbstractGui {
     public int iconHeight = 8;
     public int iconWidth = 8;
     protected final Minecraft minecraft;
+    protected int width;
+    protected int height;
+    protected int guiX;
+    protected int guiY;
     protected int barIndex;
     protected double barPercent;
     protected boolean visible = true;
@@ -38,24 +43,33 @@ public class OriginBarOverlayGui extends AbstractGui {
     protected void render(MatrixStack stack) {
         visible = visibilityRule.test(this);
         if (!visible) return;
-        int width = minecraft.getMainWindow().getScaledWidth();
-        int height = minecraft.getMainWindow().getScaledHeight();
-        int guiX = width / 2 + 10;
-        int guiY = height - 49;
+        width = minecraft.getMainWindow().getScaledWidth();
+        height = minecraft.getMainWindow().getScaledHeight();
+        guiX = getGuiX();
+        guiY = getGuiY();
 
         minecraft.getTextureManager().bindTexture(BAR_TEXTURES);
-        renderIcon(stack, guiX, guiY);
-        if (barPercent < 1) renderBackgroundBar(stack, guiX, guiY);
-        if (barPercent > 0) renderActiveBar(stack, guiX, guiY);
+        renderIcon(stack);
+        if (barPercent < 1) renderBackgroundBar(stack);
+        if (barPercent > 0) renderActiveBar(stack);
     }
 
-    protected void renderBackgroundBar(MatrixStack stack, int guiX, int guiY) {
+    protected int getGuiX() {
+        return width / 2 + 10;
+    }
+
+    protected int getGuiY() {
+        ClientPlayerEntity player = minecraft.player;
+        return player != null && player.getAir() < player.getMaxAir() ? height - 49 - 10 : height - 49;
+    }
+
+    protected void renderBackgroundBar(MatrixStack stack) {
         int x = guiX + iconWidth + barMargin;
         int y = guiY + barYOffset;
         blit(stack, x, y, 0, 0, barWidth, barHeight);
     }
 
-    protected void renderActiveBar(MatrixStack stack, int guiX, int guiY) {
+    protected void renderActiveBar(MatrixStack stack) {
         int barVOffset = (barIndex + 1) * barUVInterval;
         int activeBarWidth = (int) (barWidth * barPercent);
         int x = guiX + iconWidth + barMargin;
@@ -63,7 +77,7 @@ public class OriginBarOverlayGui extends AbstractGui {
         blit(stack, x, y, 0, barVOffset, activeBarWidth, barHeight);
     }
 
-    protected void renderIcon(MatrixStack stack, int guiX, int guiY) {
+    protected void renderIcon(MatrixStack stack) {
         int iconVOffset = (barIndex + 1) * barUVInterval - barYOffset;
         blit(stack, guiX, guiY, barWidth + barMargin, iconVOffset, iconWidth, iconHeight);
     }
@@ -98,7 +112,10 @@ public class OriginBarOverlayGui extends AbstractGui {
         WINGS(4),
         ENDER_PEARL(6),
         FLAME(7),
-        POISON(9);
+        POISON(9),
+        TRIDENT_ACTIVE(10),
+        TRIDENT_INACTIVE(11),
+        TRIDENT_FULL(12);
         public final int index;
         Bar(int index) {
             this.index = index;

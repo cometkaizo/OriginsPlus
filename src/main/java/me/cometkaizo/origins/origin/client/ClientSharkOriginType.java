@@ -1,7 +1,6 @@
 package me.cometkaizo.origins.origin.client;
 
 import me.cometkaizo.origins.origin.Origin;
-import me.cometkaizo.origins.origin.SharkOriginType;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
 import me.cometkaizo.origins.util.SoundUtils;
@@ -24,11 +23,13 @@ import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 
+import static me.cometkaizo.origins.origin.SharkOriginType.Cooldown.RIPTIDE_BOOST;
 import static me.cometkaizo.origins.origin.SharkOriginType.setSwimming;
+import static me.cometkaizo.origins.origin.client.OriginBarOverlayGui.Bar.*;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientSharkOriginType {
-    protected static final DataKey<Integer> RIGHT_CLICK_TIME = DataKey.create(Integer.class);
+    protected static final DataKey<Integer> RIPTIDE_CHARGE_TIME = DataKey.create(Integer.class);
     protected static final DataKey<Float> PREV_YAW = DataKey.create(Float.class);
     protected static final DataKey<Float> PREV_PITCH = DataKey.create(Float.class);
     protected static final DataKey<Float> PREV_ROLL = DataKey.create(Float.class);
@@ -46,15 +47,25 @@ public class ClientSharkOriginType {
     public static final float ROLL_AMP = 1;
     public static final double ROLL_RESPONSIVENESS = 0.2;
     public static final float ROLL_FOLLOW_TARGET_REDUCTION = 0.7F;
+    public static final OriginBarOverlayGui barOverlay = new OriginBarOverlayGui.Builder(TRIDENT_ACTIVE)
+            .disappearWhenEmpty()
+            .build();
 
     public static void onFirstActivate(Origin origin) {
-        origin.getTypeData().register(RIGHT_CLICK_TIME, 0);
-        if (origin.isServerSide()) return;
+        origin.getTypeData().register(RIPTIDE_CHARGE_TIME, 0);
         origin.getTypeData().register(PREV_PITCH, 0F);
         origin.getTypeData().register(PREV_YAW, 0F);
         origin.getTypeData().register(PREV_ROLL, 0F);
         origin.getTypeData().register(ROLL_FOLLOW_TARGET, 0F);
         origin.getTypeData().register(PREV_PARTIAL_TICKS, 0D);
+    }
+
+    public static void onActivate(Origin origin) {
+        barOverlay.start();
+    }
+
+    public static void onDeactivate(Origin origin) {
+        barOverlay.stop();
     }
 
 
@@ -152,7 +163,7 @@ public class ClientSharkOriginType {
 
     private static void startChargingRiptide(Origin origin) {
         DataManager dataManager = origin.getTypeData();
-        dataManager.set(RIGHT_CLICK_TIME, 0);
+        if (dataManager.get(RIPTIDE_CHARGE_TIME) < 0) dataManager.set(RIPTIDE_CHARGE_TIME, 0);
         setSwimming(origin.getPlayer());
     }
 
@@ -164,13 +175,29 @@ public class ClientSharkOriginType {
         Minecraft minecraft = Minecraft.getInstance();
         ClientPlayerEntity player = minecraft.player;
         if (!origin.getPlayer().equals(player)) return;
-        DataManager dataManager = origin.getTypeData();
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-        Integer prevRightClickTime = dataManager.get(RIGHT_CLICK_TIME);
 
+        DataManager dataManager = origin.getTypeData();
+        TimeTracker timeTracker = origin.getTimeTracker();
+
+        updateBarOverlay(dataManager, timeTracker);
+        updateRiptide(minecraft, player, dataManager, timeTracker);
+    }
+
+    private static void updateBarOverlay(DataManager data, TimeTracker timeTracker) {
+        double chargePercent = data.get(RIPTIDE_CHARGE_TIME) / (double) MAX_RIPTIDE_CHARGE_TIME;
+        barOverlay.setBarPercent(chargePercent);
+
+        if (timeTracker.hasTimer(RIPTIDE_BOOST)) barOverlay.setBar(TRIDENT_INACTIVE);
+        else if (chargePercent == 1) barOverlay.setBar(TRIDENT_FULL);
+        else barOverlay.setBar(TRIDENT_ACTIVE);
+    }
+
+    private static void updateRiptide(Minecraft minecraft, ClientPlayerEntity player, DataManager dataManager, TimeTracker timeTracker) {
+        Integer prevRiptideChargeTime = dataManager.get(RIPTIDE_CHARGE_TIME);
         boolean canRiptide = canRiptide(player);
-        if (prevRightClickTime >= 0 && minecraft.gameSettings.keyBindUseItem.isKeyDown() && !player.isSneaking()) {
-            dataManager.increase(RIGHT_CLICK_TIME, 1);
+
+        if (canRiptide && prevRiptideChargeTime >= 0 && minecraft.gameSettings.keyBindUseItem.isKeyDown() && !player.isSneaking()) {
+            if (prevRiptideChargeTime < MAX_RIPTIDE_CHARGE_TIME) dataManager.increase(RIPTIDE_CHARGE_TIME, 1);
             if (player.isInWaterOrBubbleColumn()) {
                 float prevPitch = dataManager.get(PREV_PITCH);
                 float prevYaw = dataManager.get(PREV_YAW);
@@ -178,16 +205,20 @@ public class ClientSharkOriginType {
                 setSwimming(player);
             }
         } else {
-            if (canRiptide && !player.isSneaking() && !cooldownTracker.hasTimer(SharkOriginType.Cooldown.RIPTIDE_BOOST)) {
-                if (prevRightClickTime > 0) {
-                    startRiptide(player, prevRightClickTime);
+            if (canRiptide && !player.isSneaking() && !timeTracker.hasTimer(RIPTIDE_BOOST)) {
+                if (prevRiptideChargeTime > 0) {
+                    startRiptide(player, prevRiptideChargeTime);
                     setSwimming(player);
                 }
-                cooldownTracker.addTimer(SharkOriginType.Cooldown.RIPTIDE_BOOST);
+                timeTracker.addTimer(RIPTIDE_BOOST);
             }
-            dataManager.set(RIGHT_CLICK_TIME, -1);
+            dataManager.set(RIPTIDE_CHARGE_TIME, -1);
         }
 
+        updateCameraInfo(player, dataManager, canRiptide);
+    }
+
+    private static void updateCameraInfo(ClientPlayerEntity player, DataManager dataManager, boolean canRiptide) {
         dataManager.set(PREV_PITCH, player.rotationPitch);
         dataManager.set(PREV_YAW, player.rotationYaw);
 
@@ -220,9 +251,9 @@ public class ClientSharkOriginType {
                 Math.abs(prevPitch - player.rotationPitch) - FAST_SWIM_DEGREES) / FAST_SWIM_DEGREES + 1;
     }
 
-    private static void startRiptide(ClientPlayerEntity player, int rightClickTime) {
+    private static void startRiptide(ClientPlayerEntity player, int chargeTime) {
 
-        int riptideStrength = MathHelper.clamp(rightClickTime / MAX_RIPTIDE_CHARGE_TIME, 0, 1) * 3;
+        int riptideStrength = MathHelper.clamp(chargeTime / MAX_RIPTIDE_CHARGE_TIME, 0, 1) * 3;
 
         float yaw = player.rotationYaw;
         float pitch = player.rotationPitch;

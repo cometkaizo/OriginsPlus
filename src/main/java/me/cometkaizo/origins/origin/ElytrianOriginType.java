@@ -33,6 +33,7 @@ import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 public class ElytrianOriginType extends AbstractOriginType {
 
     public static final Logger LOGGER = LogManager.getLogger();
+    public static final int FULL_ARMOR_FLIGHT_WEAKNESS_AMP = 3;
     public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;
     public static final double FLAP_AMPLIFIER = 1.1;
     public static final double SUPER_FLAP_AMPLIFIER = 9;
@@ -42,7 +43,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     public static final float SNEAK_BOOST_REDUCTION = 0.3F;
     public static final float XP_BONUS_AMP = 0.05F;
     public static final int MAX_ARMOR_VALUE = 20;
-    public static final float HEAVINESS_AMP = 0.1F;
+    public static final float HEAVINESS_AMP = 0.5F;
     public static final ParticleSpawner SUPER_BOOST_PARTICLE_SPAWNER = new ParticleSpawner()
             .withParticles(ParticleTypes.CLOUD)
             .withRandomCount(20, 35)
@@ -95,7 +96,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     private static int getWeaknessAmplifier(int armorValue) {
-        return (armorValue - 16) / 3;
+        return (int) (getLightness(armorValue) * (FULL_ARMOR_FLIGHT_WEAKNESS_AMP / HEAVINESS_AMP));
     }
 
     private static void updateFlightWeakness(PlayerEntity player, int amplifier) {

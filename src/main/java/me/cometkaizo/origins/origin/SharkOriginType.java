@@ -42,6 +42,7 @@ public class SharkOriginType extends AbstractOriginType {
         super(Items.COD, type -> new Origin.Description(type,
                 new Origin.Description.Entry(type, "gills"),
                 new Origin.Description.Entry(type, "mobility"),
+                new Origin.Description.Entry(type, "riptide"),
                 new Origin.Description.Entry(type, "trident"),
                 new Origin.Description.Entry(type, "water_vision")
         ));
@@ -85,6 +86,7 @@ public class SharkOriginType extends AbstractOriginType {
         super.onActivate(origin);
         origin.getPlayer().inventory.mainInventory.forEach(SharkOriginType::tryAddTridentModifiers);
         origin.getPlayer().inventory.offHandInventory.forEach(SharkOriginType::tryAddTridentModifiers);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSharkOriginType.onActivate(origin));
     }
 
     @Override
@@ -92,6 +94,7 @@ public class SharkOriginType extends AbstractOriginType {
         super.onDeactivate(origin);
         origin.getPlayer().inventory.mainInventory.forEach(SharkOriginType::tryRemoveTridentModifiers);
         origin.getPlayer().inventory.offHandInventory.forEach(SharkOriginType::tryRemoveTridentModifiers);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSharkOriginType.onDeactivate(origin));
     }
 
     @Override
