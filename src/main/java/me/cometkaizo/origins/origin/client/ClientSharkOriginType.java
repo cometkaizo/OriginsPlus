@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.entity.MoverType;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
@@ -22,6 +23,8 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+
+import static me.cometkaizo.origins.origin.SharkOriginType.setSwimming;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientSharkOriginType {
@@ -37,21 +40,21 @@ public class ClientSharkOriginType {
     public static final float MAX_SWIM_SPEED_SQUARED = 0.7F * 0.7F;
     public static final float MAX_FAST_SWIM_SPEED_SQUARED = 1.25F * 1.25F;
     public static final float FAST_SWIM_DEGREES = 8;
-    public static final float WATER_FOG_REDUCTION_FACTOR = 0.3F;
-    public static final float RAIN_FOG_REDUCTION_FACTOR = 0.3F;
+    public static final float WATER_FOG_REDUCTION_FACTOR = 0.1F;
+    public static final float RAIN_FOG_REDUCTION_FACTOR = 0.2F;
     public static final float AIR_FOG_REDUCTION_FACTOR = 0.4F;
     public static final float ROLL_AMP = 1;
     public static final double ROLL_RESPONSIVENESS = 0.2;
     public static final float ROLL_FOLLOW_TARGET_REDUCTION = 0.7F;
 
     public static void onFirstActivate(Origin origin) {
-        origin.getTypeDataManager().register(RIGHT_CLICK_TIME, 0);
+        origin.getTypeData().register(RIGHT_CLICK_TIME, 0);
         if (origin.isServerSide()) return;
-        origin.getTypeDataManager().register(PREV_PITCH, 0F);
-        origin.getTypeDataManager().register(PREV_YAW, 0F);
-        origin.getTypeDataManager().register(PREV_ROLL, 0F);
-        origin.getTypeDataManager().register(ROLL_FOLLOW_TARGET, 0F);
-        origin.getTypeDataManager().register(PREV_PARTIAL_TICKS, 0D);
+        origin.getTypeData().register(PREV_PITCH, 0F);
+        origin.getTypeData().register(PREV_YAW, 0F);
+        origin.getTypeData().register(PREV_ROLL, 0F);
+        origin.getTypeData().register(ROLL_FOLLOW_TARGET, 0F);
+        origin.getTypeData().register(PREV_PARTIAL_TICKS, 0D);
     }
 
 
@@ -64,6 +67,10 @@ public class ClientSharkOriginType {
             onClientTick((TickEvent.ClientTickEvent) event, origin);
         } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
             onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
+        } else if (event instanceof PlayerInteractEvent.RightClickItem) {
+            onItemClick((PlayerInteractEvent.RightClickItem) event, origin);
+        } else if (event instanceof PlayerInteractEvent.RightClickBlock) {
+            onBlockClick((PlayerInteractEvent.RightClickBlock) event, origin);
         }
     }
 
@@ -94,7 +101,7 @@ public class ClientSharkOriginType {
 
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (!origin.getPlayer().equals(player)) return;
-        DataManager dataManager = origin.getTypeDataManager();
+        DataManager dataManager = origin.getTypeData();
 
         double partialTicks = event.getRenderPartialTicks();
         Double prevPartialTicks = dataManager.get(PREV_PARTIAL_TICKS);
@@ -112,15 +119,41 @@ public class ClientSharkOriginType {
         dataManager.set(PREV_PARTIAL_TICKS, partialTicks);
     }
 
+    public static void onBlockClick(PlayerInteractEvent.RightClickBlock event, Origin origin) {
+        if (event.isCanceled()) return;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientPlayerEntity player = minecraft.player;
+        if (!origin.getPlayer().equals(player)) return;
+        if (player.isSwimming()) {
+            startChargingRiptide(origin);
+        }
+    }
+
+    public static void onItemClick(PlayerInteractEvent.RightClickItem event, Origin origin) {
+        if (event.isCanceled()) return;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientPlayerEntity player = minecraft.player;
+        if (!origin.getPlayer().equals(player)) return;
+        if (event.getItemStack().getItem() == Items.SHIELD) {
+            startChargingRiptide(origin);
+        }
+    }
+
     public static void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
         if (event.isCanceled()) return;
 
         Minecraft minecraft = Minecraft.getInstance();
         ClientPlayerEntity player = minecraft.player;
-        if (player == null || !origin.getPlayer().getGameProfile().equals(player.getGameProfile())) return;
-        DataManager dataManager = origin.getTypeDataManager();
+        if (!origin.getPlayer().equals(player)) return;
+        startChargingRiptide(origin);
+    }
 
+    private static void startChargingRiptide(Origin origin) {
+        DataManager dataManager = origin.getTypeData();
         dataManager.set(RIGHT_CLICK_TIME, 0);
+        setSwimming(origin.getPlayer());
     }
 
     public static void onClientTick(TickEvent.ClientTickEvent event, Origin origin) {
@@ -131,7 +164,7 @@ public class ClientSharkOriginType {
         Minecraft minecraft = Minecraft.getInstance();
         ClientPlayerEntity player = minecraft.player;
         if (!origin.getPlayer().equals(player)) return;
-        DataManager dataManager = origin.getTypeDataManager();
+        DataManager dataManager = origin.getTypeData();
         TimeTracker cooldownTracker = origin.getTimeTracker();
         Integer prevRightClickTime = dataManager.get(RIGHT_CLICK_TIME);
 
@@ -142,11 +175,14 @@ public class ClientSharkOriginType {
                 float prevPitch = dataManager.get(PREV_PITCH);
                 float prevYaw = dataManager.get(PREV_YAW);
                 applyFastSwim(player, prevPitch, prevYaw);
+                setSwimming(player);
             }
         } else {
             if (canRiptide && !player.isSneaking() && !cooldownTracker.hasTimer(SharkOriginType.Cooldown.RIPTIDE_BOOST)) {
-                if (prevRightClickTime > 0)
+                if (prevRightClickTime > 0) {
                     startRiptide(player, prevRightClickTime);
+                    setSwimming(player);
+                }
                 cooldownTracker.addTimer(SharkOriginType.Cooldown.RIPTIDE_BOOST);
             }
             dataManager.set(RIGHT_CLICK_TIME, -1);

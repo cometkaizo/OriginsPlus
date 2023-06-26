@@ -2,7 +2,7 @@ package me.cometkaizo.origins.client;
 
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.network.C2SUsePower;
-import me.cometkaizo.origins.network.PacketUtils;
+import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
@@ -43,7 +43,7 @@ public final class KeyBindings {
             return;
         }
 
-        PacketUtils.sendToServer(new C2SUsePower());
+        Packets.sendToServer(new C2SUsePower());
 
         Origin origin = Origin.getOrigin(player);
         if (origin != null) origin.performAction();

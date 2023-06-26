@@ -2,6 +2,7 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.property.Property;
 import net.minecraft.entity.Entity;
+import net.minecraft.item.ItemStack;
 import net.minecraftforge.registries.IForgeRegistryEntry;
 
 import java.io.Serializable;
@@ -20,10 +21,21 @@ public interface OriginType extends IForgeRegistryEntry<OriginType>, Serializabl
     void onEvent(Object event, Origin origin);
     void onPlayerSensitiveEvent(Object event, Origin origin);
     boolean hasMixinProperty(Object property, Origin origin);
+
+    /**
+     * Performs the hotkey action. Called on both sides when the hotkey is pressed.
+     */
     void performAction(Origin origin);
     void onFirstActivate(Origin origin);
     void onActivate(Origin origin);
     void onDeactivate(Origin origin);
     String getName();
 
+    /**
+     * Initializes this origin type. Called <i>after</i> the registry is registered.
+     */
+    void init();
+
+    Origin.Description getDescription();
+    ItemStack getIcon();
 }

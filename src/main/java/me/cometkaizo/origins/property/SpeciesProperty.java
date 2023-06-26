@@ -37,17 +37,23 @@ public class SpeciesProperty extends EventInterceptProperty {
 
     public void onAggro(LivingSetAttackTargetEvent event, Origin origin) {
         if (event.isCanceled()) return;
+        if (event.getTarget() == null) return;
         if (!origin.isServerSide()) return;
+        if (!origin.getType().hasProperty(this)) return;
 
         LivingEntity entity = event.getEntityLiving();
         LivingEntity target = event.getTarget();
-        PlayerEntity player = origin.getPlayer();
-        if (!player.equals(target)) return;
+        boolean includes = species.includes(entity);
+        if (!includes) return;
 
-        boolean isOnNoAggroList = isOnNoAggroList(entity, target);
-        if (species.includes(entity) || isOnNoAggroList) {
+        boolean shouldNotAttack = shouldNotAttack(entity, target, origin.getPlayer());
+        if (shouldNotAttack) {
             species.setAttackTarget(entity, null);
         }
+    }
+
+    private boolean shouldNotAttack(LivingEntity entity, LivingEntity target, PlayerEntity player) {
+        return target == player || isOnNoAggroList(entity, target);
     }
 
 
@@ -66,10 +72,17 @@ public class SpeciesProperty extends EventInterceptProperty {
     public void onLivingHurt(LivingHurtEvent event, Origin origin) {
         if (event.isCanceled()) return;
         if (!origin.isServerSide()) return;
+        if (!origin.getType().hasProperty(this)) return;
 
-        if (origin.getPlayer().equals(event.getSource().getTrueSource())) {
+        if (isPlayerCaused(event, origin)) {
             onPlayerDamageEntity(event, origin);
+        } else if (isPlayerVictim(event, origin)) {
+            onPlayerDamaged(event, origin);
         }
+    }
+
+    private static boolean isPlayerCaused(LivingHurtEvent event, Origin origin) {
+        return origin.getPlayer().equals(event.getSource().getTrueSource());
     }
 
     private void onPlayerDamageEntity(LivingHurtEvent event, Origin origin) {
@@ -79,6 +92,17 @@ public class SpeciesProperty extends EventInterceptProperty {
             species.deaggro(target);
         } else {
             aggroNearbyEntities(origin.getPlayer(), target);
+        }
+    }
+
+    private boolean isPlayerVictim(LivingHurtEvent event, Origin origin) {
+        return origin.getPlayer().equals(event.getEntity());
+    }
+
+    private void onPlayerDamaged(LivingHurtEvent event, Origin origin) {
+        Entity attacker = event.getSource().getTrueSource();
+        if (attacker instanceof LivingEntity) {
+            aggroNearbyEntities(origin.getPlayer(), (LivingEntity) attacker);
         }
     }
 
@@ -100,7 +124,7 @@ public class SpeciesProperty extends EventInterceptProperty {
         private double rallyRadius = 0;
 
         public Builder(Species species) {
-            setSpecies(species);
+            this.species = species;
         }
 
         public Builder() {
@@ -133,6 +157,7 @@ public class SpeciesProperty extends EventInterceptProperty {
         }
 
         public SpeciesProperty build() {
+            if (species == null) throw new IllegalStateException("Species cannot be null");
             return new SpeciesProperty(name, species, rallyRadius);
         }
     }

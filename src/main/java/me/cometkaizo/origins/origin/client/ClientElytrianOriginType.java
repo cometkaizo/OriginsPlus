@@ -1,23 +1,20 @@
 package me.cometkaizo.origins.origin.client;
 
 import me.cometkaizo.origins.network.C2SElytrianAction;
-import me.cometkaizo.origins.network.PacketUtils;
-import me.cometkaizo.origins.origin.ElytrianOriginType;
+import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
-import net.minecraft.util.MovementInput;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 
-import static me.cometkaizo.origins.origin.ElytrianOriginType.boostForward;
-import static me.cometkaizo.origins.origin.ElytrianOriginType.boostUp;
+import static me.cometkaizo.origins.origin.ElytrianOriginType.*;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientElytrianOriginType {
@@ -27,14 +24,25 @@ public class ClientElytrianOriginType {
     public static final float ROLL_AMP = 1;
     public static final double ROLL_RESPONSIVENESS = 0.2;
     public static final float ROLL_FOLLOW_TARGET_REDUCTION = 0.7F;
+    public static final OriginBarOverlayGui barOverlay = new OriginBarOverlayGui.Builder(OriginBarOverlayGui.Bar.WINGS)
+            .disappearWhenFull()
+            .build();
 
 
 
     public static void onFirstActivate(Origin origin) {
         if (origin.isServerSide()) return;
-        origin.getTypeDataManager().register(PREV_ROLL, 0F);
-        origin.getTypeDataManager().register(ROLL_FOLLOW_TARGET, 0F);
-        origin.getTypeDataManager().register(PREV_ROLL_PARTIAL_TICKS, 0D);
+        origin.getTypeData().register(PREV_ROLL, 0F);
+        origin.getTypeData().register(ROLL_FOLLOW_TARGET, 0F);
+        origin.getTypeData().register(PREV_ROLL_PARTIAL_TICKS, 0D);
+    }
+
+    public static void onActivate(Origin origin) {
+        barOverlay.start();
+    }
+
+    public static void onDeactivate(Origin origin) {
+        barOverlay.stop();
     }
 
 
@@ -58,30 +66,36 @@ public class ClientElytrianOriginType {
 
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (!origin.getPlayer().equals(player)) return;
+        TimeTracker timeTracker = origin.getTimeTracker();
+
+        updateBarOverlay(timeTracker);
 
         if (!player.isElytraFlying()) return;
-        MovementInput input = player.movementInput;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
 
-        if (input.jump && !cooldownTracker.hasCooldownOf(ElytrianOriginType.Cooldown.class)) {
+        if (player.movementInput.jump && canNormalBoost(timeTracker)) {
             boostUp(origin);
-            PacketUtils.sendToServer(C2SElytrianAction.upBoost());
+            Packets.sendToServer(C2SElytrianAction.upBoost());
         }
+    }
+
+    private static void updateBarOverlay(TimeTracker timeTracker) {
+        barOverlay.setBarPercent(timeTracker.getTimerPercentage(Cooldown.SUPER_BOOST));
     }
 
     public static void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
         if (event.isCanceled()) return;
+        if (origin.isServerSide()) return;
         if (!origin.getPlayer().equals(event.getPlayer())) return;
 
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (player == null) return;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
+        TimeTracker timeTracker = origin.getTimeTracker();
 
         if (!player.isElytraFlying()) return;
 
-        if (!cooldownTracker.hasCooldownOf(ElytrianOriginType.Cooldown.class)) {
+        if (canNormalBoost(timeTracker)) {
             boostForward(origin);
-            PacketUtils.sendToServer(C2SElytrianAction.forwardBoost());
+            Packets.sendToServer(C2SElytrianAction.forwardBoost());
         }
     }
 
@@ -93,7 +107,7 @@ public class ClientElytrianOriginType {
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (!origin.getPlayer().equals(player)) return;
 
-        DataManager dataManager = origin.getTypeDataManager();
+        DataManager dataManager = origin.getTypeData();
 
         float yawDiff = player.rotationYawHead - player.prevRotationYawHead;
         float followTarget = dataManager.get(ROLL_FOLLOW_TARGET);
@@ -109,7 +123,7 @@ public class ClientElytrianOriginType {
         if (origin.isServerSide()) return;
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (!origin.getPlayer().equals(player)) return;
-        DataManager dataManager = origin.getTypeDataManager();
+        DataManager dataManager = origin.getTypeData();
 
         double partialTicks = event.getRenderPartialTicks();
         Double prevPartialTicks = dataManager.get(PREV_ROLL_PARTIAL_TICKS);

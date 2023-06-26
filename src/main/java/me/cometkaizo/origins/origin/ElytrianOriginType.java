@@ -2,21 +2,23 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.origin.client.ClientElytrianOriginType;
 import me.cometkaizo.origins.potion.OriginEffects;
+import me.cometkaizo.origins.util.ParticleSpawner;
 import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.EquipmentSlotType;
-import net.minecraft.item.ArmorItem;
-import net.minecraft.item.ArmorMaterial;
-import net.minecraft.item.IArmorMaterial;
-import net.minecraft.item.Item;
+import net.minecraft.item.*;
+import net.minecraft.particles.ParticleTypes;
 import net.minecraft.potion.EffectInstance;
+import net.minecraft.potion.Effects;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
+import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
@@ -31,15 +33,36 @@ import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 public class ElytrianOriginType extends AbstractOriginType {
 
     public static final Logger LOGGER = LogManager.getLogger();
-    public static final int MAX_ARMOR_VALUE = 20;
     public static final int FLIGHT_WEAKNESS_DURATION = 3 * 20;
     public static final double FLAP_AMPLIFIER = 1.1;
+    public static final double SUPER_FLAP_AMPLIFIER = 9;
     public static final double BOOST_AMPLIFIER = 0.85;
     public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.3;
     public static final float BOOST_EXHAUSTION = 0.06F;
     public static final float SNEAK_BOOST_REDUCTION = 0.3F;
     public static final float XP_BONUS_AMP = 0.05F;
-    public static final float HEAVINESS_AMP = 0.25F;
+    public static final int MAX_ARMOR_VALUE = 20;
+    public static final float HEAVINESS_AMP = 0.1F;
+    public static final ParticleSpawner SUPER_BOOST_PARTICLE_SPAWNER = new ParticleSpawner()
+            .withParticles(ParticleTypes.CLOUD)
+            .withRandomCount(20, 35)
+            .withRandomDirection(-3, 0.1, -3, 3, -0.5, 3)
+            .withRandomSpeed(0.5, 0.7);
+    public static final int LIGHTNING_SPAWN_CHANCE = 10000;
+    public static final int LIGHTNING_STRIKE_MIN_Y = 120;
+
+    public ElytrianOriginType() {
+        super(Items.ELYTRA, type -> new Origin.Description(type,
+                new Origin.Description.Entry(type, "winged"),
+                new Origin.Description.Entry(type, "mobility"),
+                new Origin.Description.Entry(type, "extra_damage"),
+                new Origin.Description.Entry(type, "super_boost"),
+                new Origin.Description.Entry(type, "experience"),
+                new Origin.Description.Entry(type, "lightness"),
+                new Origin.Description.Entry(type, "claustrophobia"),
+                new Origin.Description.Entry(type, "lightning")
+        ));
+    }
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
@@ -51,8 +74,9 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     public enum Cooldown implements TimeTracker.Timer {
-        UP_BOOST(0.75 * 20),
-        FORWARD_BOOST(7);
+        SUPER_BOOST(60 * 20),
+        UP_BOOST(0.6 * 20),
+        FORWARD_BOOST(5);
         public final int duration;
 
         Cooldown(double duration) {
@@ -71,13 +95,12 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     private static int getWeaknessAmplifier(int armorValue) {
-        return (armorValue - 13) / 2;
+        return (armorValue - 16) / 3;
     }
 
     private static void updateFlightWeakness(PlayerEntity player, int amplifier) {
-        int previousAmplifier = 0;
         EffectInstance activeWeakness = player.getActivePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
-        if (activeWeakness != null) previousAmplifier = activeWeakness.getAmplifier();
+        int previousAmplifier = activeWeakness != null ? activeWeakness.getAmplifier() : 0;
 
         if (amplifier < 0) player.removePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
         else {
@@ -167,6 +190,7 @@ public class ElytrianOriginType extends AbstractOriginType {
 
     @Override
     public void onEvent(Object event, Origin origin) {
+        super.onEvent(event, origin);
         if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
@@ -181,25 +205,46 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
-        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onFirstActivate(origin));
+    public void performAction(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        if (canSuperBoost(origin, player)) {
+            superBoostUp(origin);
+            player.startFallFlying();
+        }
     }
 
-    @Override
-    public void performAction(Origin origin) {
-        boostUp(origin);
+    public static boolean canNormalBoost(TimeTracker timeTracker) {
+        return !timeTracker.hasTimer(Cooldown.UP_BOOST) &&
+                !timeTracker.hasTimer(Cooldown.FORWARD_BOOST);
+    }
+
+    private static boolean canSuperBoost(Origin origin, PlayerEntity player) {
+        return !player.isInWater() && !player.isPotionActive(Effects.LEVITATION) &&
+                !origin.getTimeTracker().hasTimer(Cooldown.SUPER_BOOST);
+    }
+
+    public static void superBoostUp(Origin origin) {
+        PlayerEntity player = origin.getPlayer();
+        boostUp(origin, SUPER_FLAP_AMPLIFIER);
+        if (player.world instanceof ServerWorld)
+            SUPER_BOOST_PARTICLE_SPAWNER.spawnAt((ServerWorld) player.world, player);
+        origin.getTimeTracker().addTimer(Cooldown.SUPER_BOOST);
     }
 
     public static void boostUp(Origin origin) {
+        boostUp(origin, FLAP_AMPLIFIER);
+    }
+
+    public static void boostUp(Origin origin, double amp) {
         PlayerEntity player = origin.getPlayer();
         float flapAmount = (-player.rotationPitch + 90) / 180;
         float lightness = getLightness(getArmorValue(origin.getPlayer()));
 
-        double yMotion = flapAmount * FLAP_AMPLIFIER * lightness;
+        double yMotion = flapAmount * amp * lightness;
         player.setMotion(player.getMotion().add(0, yMotion, 0));
 
         SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
-        origin.getTimeTracker().addTimer(ElytrianOriginType.Cooldown.UP_BOOST);
+        origin.getTimeTracker().addTimer(Cooldown.UP_BOOST);
         player.addExhaustion(BOOST_EXHAUSTION);
     }
 
@@ -215,11 +260,12 @@ public class ElytrianOriginType extends AbstractOriginType {
                 .scale(lightness)
                 .scale(xpBonus)
                 .scale(shiftReduction);
+
         Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
         player.setMotion(oldMotion.add(boost));
 
         SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
-        origin.getTimeTracker().addTimer(ElytrianOriginType.Cooldown.FORWARD_BOOST);
+        origin.getTimeTracker().addTimer(Cooldown.FORWARD_BOOST);
         player.addExhaustion(BOOST_EXHAUSTION);
     }
 
@@ -228,21 +274,35 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     @Override
+    public void onFirstActivate(Origin origin) {
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onFirstActivate(origin));
+    }
+
+    @Override
     public void onActivate(Origin origin) {
+        super.onActivate(origin);
         updateFlightWeakness(origin.getPlayer(), getWeaknessAmplifier((int) getArmorValue(origin.getPlayer())));
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onActivate(origin));
     }
 
     @Override
     public void onDeactivate(Origin origin) {
+        super.onDeactivate(origin);
         origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onDeactivate(origin));
     }
 
     public void onPlayerTick(TickEvent.PlayerTickEvent event, Origin origin) {
         if (event.isCanceled()) return;
-        if (event.side == LogicalSide.CLIENT) return;
         if (event.phase == TickEvent.Phase.START) return;
         if (!origin.getPlayer().equals(event.player)) return;
         PlayerEntity player = origin.getPlayer();
+
+        if (player.isElytraFlying() && player.areEyesInFluid(FluidTags.WATER)) {
+            setSwimming(player);
+        }
+
+        if (event.side == LogicalSide.CLIENT) return;
 
         if (player.isElytraFlying()) {
             player.addPotionEffect(new EffectInstance(OriginEffects.FLIGHT_STRENGTH.get(), Integer.MAX_VALUE, 0));
@@ -252,6 +312,13 @@ public class ElytrianOriginType extends AbstractOriginType {
                 player.addPotionEffect(new EffectInstance(OriginEffects.FLIGHT_WEAKNESS.get(), FLIGHT_WEAKNESS_DURATION, 0));
             }
         }
+    }
+
+    private static void setSwimming(PlayerEntity player) {
+        player.stopFallFlying();
+        player.setSwimming(true);
+        player.setSprinting(true);
+        player.updateSwimming();
     }
 
     public void onEquipmentChange(LivingEquipmentChangeEvent event, Origin origin) {

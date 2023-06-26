@@ -5,6 +5,7 @@ import me.cometkaizo.origins.client.ClientUtils;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.OriginType;
 import me.cometkaizo.origins.origin.OriginTypes;
+import me.cometkaizo.origins.origin.client.ClientOrigin;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.PacketBuffer;
@@ -41,11 +42,19 @@ public class S2CSynchronizeOrigin {
     public boolean handle(Supplier<NetworkEvent.Context> supplier) {
         supplier.get().enqueueWork(() -> {
             World world = DistExecutor.safeCallWhenOn(Dist.CLIENT, () -> ClientUtils::getClientLevel);
-            if (world == null) return;
+            if (world == null) {
+                Main.LOGGER.info("No world, sending removal packet");
+                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                return;
+            }
 
             Entity entity = world.getEntityByID(playerId);
             if (entity == null) Main.LOGGER.error("Invalid synchronization packet: no entity with id {}", playerId);
-            if (!(entity instanceof PlayerEntity)) return;
+            if (!(entity instanceof PlayerEntity)) {
+                Main.LOGGER.info("Entity is null or is not player: {}, sending removal packet", entity);
+                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                return;
+            }
             PlayerEntity player = (PlayerEntity) entity;
 
             OriginType type = OriginTypes.of(originType);
@@ -54,8 +63,8 @@ public class S2CSynchronizeOrigin {
             if (origin != null) {
                 origin.acceptSynchronization(player, type);
             } else {
-                Main.LOGGER.error("Invalid synchronization packet: {} does not have origin capability",
-                        player.getGameProfile().getName());
+                Main.LOGGER.info("No origin, sending removal packet");
+                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
             }
         });
         return true;

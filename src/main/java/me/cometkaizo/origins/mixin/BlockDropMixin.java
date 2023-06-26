@@ -1,5 +1,6 @@
 package me.cometkaizo.origins.mixin;
 
+import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.origin.EnderianOriginType;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.CollUtils;
@@ -61,9 +62,15 @@ public final class BlockDropMixin {
 
             Origin origin = Origin.getOrigin(entity);
             if (origin != null && origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH)) {
+                BlockState block = lootContext.get(LootParameters.BLOCK_STATE);
+                if (shouldDropNormally(tool, block)) return;
                 CompoundNBT data = tool.getOrCreateTag();
                 data.putBoolean(ORIGIN_SILK_TOUCH, true);
             }
+        }
+
+        private static boolean shouldDropNormally(ItemStack tool, BlockState block) {
+            return block == null || tool.canHarvestBlock(block);
         }
     }
 
@@ -88,19 +95,23 @@ public final class BlockDropMixin {
             if (tool == null) return;
             if (EnchantmentHelper.getEnchantmentLevel(Enchantments.FORTUNE, tool) > 0) return;
 
-            Enchantment enchantment = getFieldOfType(Enchantment.class, enchantmentpredicate);
-            MinMaxBounds.IntBound bound = getFieldOfType(MinMaxBounds.IntBound.class, enchantmentpredicate);
-            Long boundMinSqr = (Long) getFieldOrThrow(INT_BOUND_MIN_FIELD, bound);
-            Long boundMaxSqr = (Long) getFieldOrThrow(INT_BOUND_MAX_FIELD, bound);
+            try {
+                Enchantment enchantment = getFieldOfType(Enchantment.class, enchantmentpredicate);
+                MinMaxBounds.IntBound bound = getFieldOfType(MinMaxBounds.IntBound.class, enchantmentpredicate);
+                Long boundMinSqr = (Long) getFieldOrThrow(INT_BOUND_MIN_FIELD, bound);
+                Long boundMaxSqr = (Long) getFieldOrThrow(INT_BOUND_MAX_FIELD, bound);
 
-            if (enchantment != Enchantments.SILK_TOUCH) return;
-            if (boundMinSqr == null || boundMinSqr <= 0) return;
-            if (boundMaxSqr != null && boundMaxSqr >= 1) return;
+                if (enchantment != Enchantments.SILK_TOUCH) return;
+                if (boundMinSqr == null || boundMinSqr <= 0) return;
+                if (boundMaxSqr != null && boundMaxSqr >= 1) return;
 
-            if (!tool.getOrCreateTag().contains(ORIGIN_SILK_TOUCH)) return;
-            if (tool.getOrCreateTag().getBoolean(ORIGIN_SILK_TOUCH)) {
-                tool.getOrCreateTag().remove(ORIGIN_SILK_TOUCH);
-                info.setReturnValue(true);
+                if (!tool.getOrCreateTag().contains(ORIGIN_SILK_TOUCH)) return;
+                if (tool.getOrCreateTag().getBoolean(ORIGIN_SILK_TOUCH)) {
+                    tool.getOrCreateTag().remove(ORIGIN_SILK_TOUCH);
+                    info.setReturnValue(true);
+                }
+            } catch (UnsupportedOperationException e) {
+                Main.LOGGER.error("Unsupported operation: ", e);
             }
         }
     }
@@ -131,8 +142,7 @@ public final class BlockDropMixin {
                                      CallbackInfoReturnable<List<ItemStack>> info) {
 
             Origin origin = Origin.getOrigin(blockBreaker);
-            if (origin != null && origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH) &&
-                    shouldDropOriginal(blockState, tool)) {
+            if (origin != null && shouldDropOriginal(origin, blockState, tool)) {
                 List<ItemStack> returnValue = CollUtils.listOf(new ItemStack(blockState.getBlock().asItem()));
 
                 info.setReturnValue(returnValue);
@@ -146,8 +156,9 @@ public final class BlockDropMixin {
          * @return whether the block should drop its item
          */
         @Unique
-        private static boolean shouldDropOriginal(BlockState blockState, ItemStack tool) {
-            return blockState.matchesBlock(Blocks.SPAWNER) &&
+        private static boolean shouldDropOriginal(Origin origin, BlockState blockState, ItemStack tool) {
+            return origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH) &&
+                    blockState.matchesBlock(Blocks.SPAWNER) &&
                     (tool.getItem() instanceof PickaxeItem && ((PickaxeItem) tool.getItem()).getTier().getHarvestLevel() >= 3);
         }
     }

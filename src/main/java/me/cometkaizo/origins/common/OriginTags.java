@@ -23,6 +23,7 @@ public class OriginTags {
     public static class Items {
 
         public static final Tags.IOptionalNamedTag<Item> ARMOR = createTag("armor");
+        public static final Tags.IOptionalNamedTag<Item> SEAFOOD = createTag("seafood");
 
         private static Tags.IOptionalNamedTag<Item> createTag(String namespace) {
             return ItemTags.createOptional(new ResourceLocation(Main.MOD_ID, namespace));

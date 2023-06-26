@@ -2,12 +2,14 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.common.OriginDamageSources;
 import me.cometkaizo.origins.origin.client.ClientEnderianOriginType;
+import me.cometkaizo.origins.property.SpeciesProperty;
 import me.cometkaizo.origins.util.AttributeUtils;
 import me.cometkaizo.origins.util.SoundUtils;
 import me.cometkaizo.origins.util.TagUtils;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.item.EnderPearlEntity;
 import net.minecraft.entity.monster.EndermanEntity;
@@ -48,8 +50,12 @@ public class EnderianOriginType extends AbstractOriginType {
     public static final int PUMPKIN_SCARE_DAMAGE = 7;
     public static final int JACK_O_LANTERN_SCARE_DAMAGE = 17;
     public static final int WATER_DAMAGE = 3;
-    public static final float ENDERMAN_AGGRO_RANGE = 10;
+    public static final float ENDERMAN_RALLY_RANGE = 35;
     public static final String ENDERMAN_NO_AGGRO_LIST_KEY = EnderianOriginType.class.getName() + "_enderman_no_aggro";
+    public static final SpeciesProperty ENDERMAN_SPECIES = new SpeciesProperty.Builder()
+            .setAngerableSpecies(EntityType.ENDERMAN)
+            .setRallyRadius(ENDERMAN_RALLY_RANGE).build();
+    public static final int ENDER_PEARL_COOLDOWN_TIME = 20;
 
     public static boolean hasPearlCooldown(Origin origin) {
         return origin.getPlayer().getCooldownTracker().hasCooldown(Items.ENDER_PEARL);
@@ -60,9 +66,27 @@ public class EnderianOriginType extends AbstractOriginType {
         return property == Property.SILK_TOUCH || property == Property.EXTRA_ENTITY_REACH;
     }
 
+    public enum Action {
+        PUMPKIN_SCARE,
+        JACK_O_LANTERN_SCARE
+    }
+
     public enum Property {
         SILK_TOUCH,
         EXTRA_ENTITY_REACH
+    }
+
+    public EnderianOriginType() {
+        super("Enderian", Items.ENDER_PEARL,
+                type -> new Origin.Description(type,
+                        new Origin.Description.Entry(type, "teleportation"),
+                        new Origin.Description.Entry(type, "reach"),
+                        new Origin.Description.Entry(type, "hydrophobia"),
+                        new Origin.Description.Entry(type, "species"),
+                        new Origin.Description.Entry(type, "pumpkin")
+                ),
+                ENDERMAN_SPECIES
+        );
     }
 
     public static void throwEnderPearl(Origin origin) {
@@ -70,7 +94,7 @@ public class EnderianOriginType extends AbstractOriginType {
         World world = player.world;
 
         SoundUtils.playSound(player, SoundEvents.ENTITY_ENDER_PEARL_THROW, SoundCategory.NEUTRAL, 0.5F, 0.4F / (random.nextFloat() * 0.4F + 0.8F));
-        player.getCooldownTracker().setCooldown(Items.ENDER_PEARL, 20);
+        player.getCooldownTracker().setCooldown(Items.ENDER_PEARL, ENDER_PEARL_COOLDOWN_TIME);
 
         EnderPearlEntity pearl = new EnderPearlEntity(world, player);
         pearl.setItem(Items.ENDER_PEARL.getDefaultInstance());
@@ -82,15 +106,16 @@ public class EnderianOriginType extends AbstractOriginType {
 //
     @Override
     public void onEvent(Object event, Origin origin) {
+        super.onEvent(event, origin);
         if (event instanceof PlayerInteractEvent.RightClickItem) {
             onItemClick((PlayerInteractEvent.RightClickItem) event, origin);
         } else if (event instanceof EntityTeleportEvent.EnderPearl) {
             onPearlLand((EntityTeleportEvent.EnderPearl) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        } else if (event instanceof LivingSetAttackTargetEvent) {
+        }/* else if (event instanceof LivingSetAttackTargetEvent) {
             onAggro((LivingSetAttackTargetEvent) event, origin);
-        } else if (event instanceof LivingEquipmentChangeEvent) {
+        }*/ else if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof ProjectileImpactEvent.Throwable) {
             onProjectileImpact((ProjectileImpactEvent.Throwable) event, origin);
@@ -98,11 +123,25 @@ public class EnderianOriginType extends AbstractOriginType {
             onUseItem((LivingEntityUseItemEvent) event, origin);
         } else if (event instanceof BlockEvent.BreakEvent) {
             onBlockBreak((BlockEvent.BreakEvent) event, origin);
-        } else if (event instanceof LivingHurtEvent) {
+        }/* else if (event instanceof LivingHurtEvent) {
             onLivingHurt((LivingHurtEvent) event, origin);
+        }*/ else if (event == Action.PUMPKIN_SCARE) {
+            pumpkinScare(origin);
+        } else if (event == Action.JACK_O_LANTERN_SCARE) {
+            jackOLanternScare(origin);
         }
 
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onEvent(event, origin));
+    }
+
+    private static void jackOLanternScare(Origin origin) {
+        boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, JACK_O_LANTERN_SCARE_DAMAGE / 2F);
+        if (damaged) SoundUtils.playSound(origin.getPlayer(), SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1, 1);
+    }
+
+    private static void pumpkinScare(Origin origin) {
+        boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, PUMPKIN_SCARE_DAMAGE / 2F);
+        if (damaged) SoundUtils.playSound(origin.getPlayer(), SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
     }
 
     @Override
@@ -115,12 +154,14 @@ public class EnderianOriginType extends AbstractOriginType {
     public void onActivate(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, ForgeMod.REACH_DISTANCE.get(), REACH);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onActivate(origin));
     }
 
     @Override
     public void onDeactivate(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, ForgeMod.REACH_DISTANCE.get(), ForgeMod.REACH_DISTANCE.get().getDefaultValue());
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onDeactivate(origin));
     }
 
     public void onItemClick(PlayerInteractEvent.RightClickItem event, Origin origin) {
@@ -296,7 +337,7 @@ public class EnderianOriginType extends AbstractOriginType {
     private static void aggroNearbyEndermen(PlayerEntity player, LivingEntity target) {
         World world = player.world;
 
-        AxisAlignedBB affectedArea = player.getBoundingBox().grow(ENDERMAN_AGGRO_RANGE);
+        AxisAlignedBB affectedArea = player.getBoundingBox().grow(ENDERMAN_RALLY_RANGE);
         List<EndermanEntity> affectedEndermen = world.getEntitiesWithinAABB(EndermanEntity.class, affectedArea);
 
         for (EndermanEntity enderman : affectedEndermen) {

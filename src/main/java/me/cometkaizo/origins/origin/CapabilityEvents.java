@@ -30,12 +30,15 @@ public class CapabilityEvents {
         event.getOriginal().revive();
         if (event.isWasDeath()) {
             event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(oldOrigin ->
-                    event.getPlayer().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(newOrigin ->
-                            newOrigin.setType(oldOrigin.getType())
-                    )
+                    event.getPlayer().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(newOrigin -> {
+                        newOrigin.transferDataFrom(oldOrigin);
+                        newOrigin.forceSynchronize();
+                        newOrigin.setShouldSynchronize();
+                        Main.LOGGER.info("Updated new origin to be {}, {}", event.getPlayer(), oldOrigin.getType());
+                    })
             );
         }
-        event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(Origin::unregister);
+        event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(Origin::remove);
         event.getOriginal().remove(false);
     }
 
@@ -48,7 +51,11 @@ public class CapabilityEvents {
                 if (origin != null) {
                     origin.forceSynchronize();
                     origin.setShouldSynchronize();
-                    // TODO: 2023-04-16 Open Origins Screen here
+
+                    if (!origin.hasChosenType()) origin.setShouldOpenOriginScreen();
+
+                    // TODO: 2023-06-15 move this to C2SChooseOrigin in release and change to true
+                    origin.setHasChosenType(false);
                 }
             });
         }

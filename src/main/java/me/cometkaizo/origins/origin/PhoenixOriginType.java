@@ -3,12 +3,11 @@ package me.cometkaizo.origins.origin;
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.common.OriginDamageSources;
 import me.cometkaizo.origins.origin.client.ClientPhoenixOriginType;
-import me.cometkaizo.origins.util.ColorUtils;
-import me.cometkaizo.origins.util.ParticleSpawner;
-import me.cometkaizo.origins.util.SoundUtils;
-import me.cometkaizo.origins.util.TimeTracker;
+import me.cometkaizo.origins.util.*;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.particles.ParticleTypes;
 import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
@@ -26,6 +25,7 @@ import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingFallEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.CriticalHitEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -40,18 +40,21 @@ import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 @Mod.EventBusSubscriber(modid = Main.MOD_ID)
 public class PhoenixOriginType extends AbstractOriginType {
 
-    public static final int FIRE_POWER_TIME_MIN = 2;
-    public static final int FIRE_POWER_TIME_MAX = 4;
+    public static final int FIRE_POWER_TIME_MIN = 6;
+    public static final int FIRE_POWER_TIME_MAX = 10;
     public static final int FIRE_POWER_RANGE = 4;
     private static final double DEATH_FIRE_RANGE = 8;
     public static final int WATER_DAMAGE = 2;
+    public static final DataKey<ServerWorld> LAST_DEATH_DIMENSION = DataKey.create(ServerWorld.class);
+    public static final DataKey<Vector3d> LAST_DEATH_POS = DataKey.create(Vector3d.class);
     public static final TimeTracker SKY_EFFECTS_TIME_TRACKER = new TimeTracker();
     public static final Color SKY_DEATH_COLOR = new Color(112, 14, 10);
-    public static final double FLAP_AMPLIFIER = 0.7;
-    public static final double BOOST_AMPLIFIER = 0.4;
+    public static final double FLAP_AMPLIFIER = 0.8;
+    public static final double BOOST_AMPLIFIER = 0.55;
     public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.4;
     public static final float BOOST_EXHAUSTION = 0.08F;
     public static final float FIRE_TICK_FLY_SPEED_AMP = 0.022F;
+    public static final float XP_BONUS_AMP = 0.015F;
     public static final ParticleSpawner FIRE_POWER_PARTICLE_SPAWNER = new ParticleSpawner()
             .withParticles(ParticleTypes.SMOKE, ParticleTypes.FLAME)
             .withRandomCount(10, 20)
@@ -71,7 +74,16 @@ public class PhoenixOriginType extends AbstractOriginType {
             .withRandomSpeed(0.05, 0.1);
 
     public static final Logger LOGGER = LogManager.getLogger();
+    private static final float FIRE_POWER_DAMAGE = 5;
 
+    public PhoenixOriginType() {
+        super(Items.BLAZE_POWDER, type -> new Origin.Description(type,
+                new Origin.Description.Entry(type, "rebirth"),
+                new Origin.Description.Entry(type, "winged"),
+                new Origin.Description.Entry(type, "fire_immunity"),
+                new Origin.Description.Entry(type, "drowning_damage")
+        ));
+    }
 
 
     @SubscribeEvent
@@ -109,20 +121,39 @@ public class PhoenixOriginType extends AbstractOriginType {
     }
 
     @Override
+    public void onFirstActivate(Origin origin) {
+        super.onFirstActivate(origin);
+        origin.getTypeData().register(LAST_DEATH_DIMENSION, null);
+        origin.getTypeData().register(LAST_DEATH_POS, null);
+    }
+
+    @Override
+    public void onActivate(Origin origin) {
+        super.onActivate(origin);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onActivate(origin));
+    }
+
+    @Override
+    public void onDeactivate(Origin origin) {
+        super.onDeactivate(origin);
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onDeactivate(origin));
+    }
+
+    @Override
     public void performAction(Origin origin) {
         TimeTracker cooldownTracker = origin.getTimeTracker();
 
         if (cooldownTracker.hasTimer(Cooldown.FIRE_POWER)) return;
 
         PlayerEntity player = origin.getPlayer();
-        setNearbyEntitiesOnFire(player, FIRE_POWER_RANGE);
+        flameNearbyEntities(player, FIRE_POWER_RANGE);
 
         if (player.world instanceof ServerWorld)
             FIRE_POWER_PARTICLE_SPAWNER.spawnAt((ServerWorld) player.world, player);
         cooldownTracker.addTimer(Cooldown.FIRE_POWER);
     }
 
-    private void setNearbyEntitiesOnFire(PlayerEntity player, double range) {
+    private void flameNearbyEntities(PlayerEntity player, double range) {
         AxisAlignedBB fireAffectedArea = player.getBoundingBox().grow(range);
         List<LivingEntity> affectedEntities = player.world.getEntitiesWithinAABB(LivingEntity.class, fireAffectedArea);
 
@@ -130,6 +161,7 @@ public class PhoenixOriginType extends AbstractOriginType {
             int firePowerTime = getFirePowerTime(player);
 
             if (player.equals(entity)) firePowerTime *= 4;
+            else entity.attackEntityFrom(DamageSource.ON_FIRE, FIRE_POWER_DAMAGE);
 
             entity.setFire(firePowerTime);
         }
@@ -139,6 +171,7 @@ public class PhoenixOriginType extends AbstractOriginType {
 
     @Override
     public void onEvent(Object event, Origin origin) {
+        super.onEvent(event, origin);
         if (event instanceof CriticalHitEvent) {
             onHit((CriticalHitEvent) event, origin);
         } else if (event instanceof LivingAttackEvent) {
@@ -160,6 +193,8 @@ public class PhoenixOriginType extends AbstractOriginType {
         if (event instanceof Event && ((Event) event).isCanceled()) return;
         if (event instanceof LivingFallEvent) {
             onLivingLand(origin);
+        } else if (event instanceof PlayerEvent.PlayerRespawnEvent) {
+            onPlayerRespawn(origin);
         } else if (event == ElytrianOriginType.Action.UP_BOOST) {
             boostUp(origin);
         } else if (event == ElytrianOriginType.Action.FORWARD_BOOST) {
@@ -167,6 +202,16 @@ public class PhoenixOriginType extends AbstractOriginType {
         }
 
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onPlayerSensitiveEvent(event, origin));
+    }
+
+    private void onPlayerRespawn(Origin origin) {
+        if (!origin.isServerSide()) return;
+        ServerPlayerEntity player = (ServerPlayerEntity) origin.getPlayer();
+
+        DataManager dataManager = origin.getTypeData();
+        ServerWorld deathWorld = dataManager.get(LAST_DEATH_DIMENSION);
+        Vector3d deathPos = dataManager.get(LAST_DEATH_POS);
+        player.teleport(deathWorld, deathPos.x, deathPos.y, deathPos.z, 0, 0);
     }
 
     private void onLivingLand(Origin origin) {
@@ -189,12 +234,17 @@ public class PhoenixOriginType extends AbstractOriginType {
         PlayerEntity player = origin.getPlayer();
         Vector3d boostAmount = player.getLookVec();
         float fireSpeedBoost = Math.max(origin.getPlayer().getFireTimer(), 0) * FIRE_TICK_FLY_SPEED_AMP + 1;
-        Vector3d boost = boostAmount.scale(BOOST_AMPLIFIER).scale(fireSpeedBoost);
+        float xpBonus = Math.max(1F, player.experienceLevel * XP_BONUS_AMP);
+
+        Vector3d boost = boostAmount
+                .scale(BOOST_AMPLIFIER)
+                .scale(xpBonus)
+                .scale(fireSpeedBoost);
+
         Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
-
         player.setMotion(oldMotion.add(boost));
-        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
 
+        SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.3F, 1);
         origin.getTimeTracker().addTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST);
         player.addExhaustion(BOOST_EXHAUSTION);
     }
@@ -280,7 +330,7 @@ public class PhoenixOriginType extends AbstractOriginType {
         }
 
         SKY_EFFECTS_TIME_TRACKER.addTimer(Cooldown.SKY_EFFECT);
-        setNearbyEntitiesOnFire(player, DEATH_FIRE_RANGE);
+        flameNearbyEntities(player, DEATH_FIRE_RANGE);
         SoundUtils.playSound(player, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, SoundCategory.WEATHER);
     }
 

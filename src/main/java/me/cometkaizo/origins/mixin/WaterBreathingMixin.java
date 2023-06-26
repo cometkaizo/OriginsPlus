@@ -10,6 +10,7 @@ import net.minecraft.fluid.Fluid;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.tags.ITag;
+import net.minecraft.util.DamageSource;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.BlockPos;
@@ -29,6 +30,8 @@ public final class WaterBreathingMixin {
     @Mixin(LivingEntity.class)
     public static abstract class IsInWater extends Entity {
 
+        @Shadow public abstract boolean attackEntityFrom(@Nonnull DamageSource source, float amount);
+
         public IsInWater(EntityType<?> type, World world) {
             super(type, world);
         }
@@ -38,7 +41,7 @@ public final class WaterBreathingMixin {
             Origin origin = Origin.getOrigin(entity);
             boolean submerged = areEyesInFluid(fluidTag);
             if (origin != null) {
-                return origin.hasProperty(SharkOriginType.WATER_BREATHING_PROPERTY) != submerged;
+                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
             }
             return submerged;
         }
@@ -46,7 +49,7 @@ public final class WaterBreathingMixin {
         @Inject(at = @At("RETURN"), method = "decreaseAirSupply", cancellable = true)
         protected void decreaseAirSupply(int air, CallbackInfoReturnable<Integer> info) {
             Origin origin = Origin.getOrigin(this);
-            if (origin != null && origin.hasProperty(SharkOriginType.WATER_BREATHING_PROPERTY) && isInRain()) {
+            if (origin != null && origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) && isInRain()) {
                 if (rand.nextInt(2) > 0) {
                     info.setReturnValue(air);
                 }
@@ -57,6 +60,17 @@ public final class WaterBreathingMixin {
             BlockPos blockpos = getPosition();
             return world.isRainingAt(blockpos) ||
                     world.isRainingAt(new BlockPos(blockpos.getX(), getBoundingBox().maxY, blockpos.getZ()));
+        }
+
+        @Redirect(at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;attackEntityFrom(Lnet/minecraft/util/DamageSource;F)Z"), method = "baseTick")
+        protected boolean damageByDehydration(LivingEntity entity, DamageSource source, float amount) {
+            if (source == DamageSource.DROWN) {
+                Origin origin = Origin.getOrigin(entity);
+                if (origin != null && origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY)) {
+                    return attackEntityFrom(DamageSource.DRYOUT, amount);
+                }
+            }
+            return attackEntityFrom(source, amount);
         }
     }
 
@@ -79,7 +93,7 @@ public final class WaterBreathingMixin {
         protected boolean isSubmergedInProxy(PlayerEntity player, ITag<Fluid> fluidTag) {
             Origin origin = Origin.getOrigin(player);
             if (origin != null) {
-                return origin.hasProperty(SharkOriginType.WATER_BREATHING_PROPERTY) != areEyesInFluid(fluidTag);
+                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != areEyesInFluid(fluidTag);
             }
             return areEyesInFluid(fluidTag);
         }

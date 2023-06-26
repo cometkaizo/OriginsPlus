@@ -23,7 +23,7 @@ public class TimeTracker {
         return hasKeyOf(key, TimerEntry.class);
     }
 
-    public boolean hasCooldownOf(Class<?> keyType) {
+    public boolean hasTimerOf(Class<?> keyType) {
         return hasEntryOf(keyType, TimerEntry.class);
     }
 

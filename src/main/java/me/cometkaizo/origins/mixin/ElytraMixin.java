@@ -38,6 +38,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import static me.cometkaizo.origins.origin.ElytrianOriginType.Cooldown.FORWARD_BOOST;
+import static me.cometkaizo.origins.origin.ElytrianOriginType.Cooldown.UP_BOOST;
+
 public final class ElytraMixin {
 
     @OnlyIn(Dist.CLIENT)
@@ -54,9 +57,9 @@ public final class ElytraMixin {
                 target = "Lnet/minecraft/client/renderer/entity/model/BipedModel;setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V",
                 shift = At.Shift.AFTER),
                 method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V")
-        protected void setRotationAngles(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
+        protected void slowLimbMovementWhileFlying(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS)) {
+            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS) && entity.isElytraFlying()) {
                 bipedLeftLeg.rotateAngleX *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleY *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleZ *= FLIGHT_MOVEMENT_REDUCTION;
@@ -80,11 +83,11 @@ public final class ElytraMixin {
     @Mixin(ElytraModel.class)
     public static abstract class MixedElytraModel {
         @Unique
-        private final Transition UP_BOOST_ANIMATION = new SimpleTransition(0, -1.4, SimpleEaseOut.CUBIC, 3)
-                .andThen(new SimpleTransition(-1.4, 0, SimpleEaseInOut.CUBIC, 8));
+        private final Transition UP_BOOST_ANIMATION = new SimpleTransition(0, -1.4, SimpleEaseOut.CUBIC, UP_BOOST.duration * 6/12)
+                .andThen(new SimpleTransition(-1.4, 0, SimpleEaseInOut.CUBIC, UP_BOOST.duration * 6/12));
         @Unique
-        private final Transition FORWARD_BOOST_RETURN_ANIMATION = new SimpleTransition(0, -1.45, SimpleEaseOut.CUBIC, 3)
-                .andThen(new SimpleTransition(-1.45, 0, SimpleEaseInOut.QUAD, 4));
+        private final Transition FORWARD_BOOST_RETURN_ANIMATION = new SimpleTransition(0, -1.45, SimpleEaseOut.CUBIC, FORWARD_BOOST.duration * 3/7)
+                .andThen(new SimpleTransition(-1.45, 0, SimpleEaseInOut.QUAD, FORWARD_BOOST.duration * 4/7));
 
         @Unique
         private int animationStartTick = -1;
@@ -110,7 +113,7 @@ public final class ElytraMixin {
                 } else {
                     int forwardBoostTime;
                     if (origin.getType() == OriginTypes.ELYTRIAN.get())
-                        forwardBoostTime = origin.getTimeTracker().getTimerLeft(ElytrianOriginType.Cooldown.FORWARD_BOOST);
+                        forwardBoostTime = origin.getTimeTracker().getTimerLeft(FORWARD_BOOST);
                     else forwardBoostTime = origin.getTimeTracker().getTimerLeft(PhoenixOriginType.Cooldown.FORWARD_BOOST);
 
                     if (forwardBoostTime > 0) {

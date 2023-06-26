@@ -2,6 +2,7 @@ package me.cometkaizo.origins.mixin;
 
 import me.cometkaizo.origins.origin.ArachnidOriginType;
 import me.cometkaizo.origins.origin.Origin;
+import me.cometkaizo.origins.origin.OriginTypes;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.WebBlock;
@@ -26,6 +27,7 @@ public final class CobwebMixin {
         protected void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null && origin.hasProperty(ArachnidOriginType.Property.NO_COBWEB_SLOWDOWN)) {
+                if (!origin.isServerSide()) origin.getTypeData(OriginTypes.ARACHNID.get()).set(ArachnidOriginType.IN_COBWEB, true);
                 info.cancel();
             }
         }

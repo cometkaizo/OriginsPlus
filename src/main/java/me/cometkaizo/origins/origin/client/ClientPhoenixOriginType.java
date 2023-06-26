@@ -1,13 +1,12 @@
 package me.cometkaizo.origins.origin.client;
 
 import me.cometkaizo.origins.network.C2SElytrianAction;
-import me.cometkaizo.origins.network.PacketUtils;
+import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.PhoenixOriginType;
 import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
-import net.minecraft.util.MovementInput;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.TickEvent;
@@ -19,6 +18,17 @@ import static me.cometkaizo.origins.origin.PhoenixOriginType.boostUp;
 @OnlyIn(Dist.CLIENT)
 public class ClientPhoenixOriginType {
 
+    public static final OriginBarOverlayGui barOverlay = new OriginBarOverlayGui.Builder(OriginBarOverlayGui.Bar.FLAME)
+            .disappearWhenFull()
+            .build();
+
+    public static void onActivate(Origin origin) {
+        barOverlay.start();
+    }
+
+    public static void onDeactivate(Origin origin) {
+        barOverlay.stop();
+    }
 
     public static void onPlayerSensitiveEvent(Object event, Origin origin) {
         if (event instanceof TickEvent.ClientTickEvent) {
@@ -40,7 +50,7 @@ public class ClientPhoenixOriginType {
 
         if (!cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.UP_BOOST) && !cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST)) {
             boostForward(origin);
-            PacketUtils.sendToServer(C2SElytrianAction.forwardBoost());
+            Packets.sendToServer(C2SElytrianAction.forwardBoost());
         }
     }
 
@@ -50,15 +60,25 @@ public class ClientPhoenixOriginType {
 
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (player == null) return;
+        TimeTracker timeTracker = origin.getTimeTracker();
+
+        updateBarOverlay(timeTracker);
+
+        tryBoostUp(origin, player, timeTracker);
+    }
+
+    private static void updateBarOverlay(TimeTracker timeTracker) {
+        barOverlay.setBarPercent(timeTracker.getTimerPercentage(PhoenixOriginType.Cooldown.FIRE_POWER));
+    }
+
+    private static void tryBoostUp(Origin origin, ClientPlayerEntity player, TimeTracker timeTracker) {
         if (!player.isElytraFlying()) return;
+        if (!player.movementInput.jump) return;
+        if (timeTracker.hasTimer(PhoenixOriginType.Cooldown.UP_BOOST)) return;
+        if (timeTracker.hasTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST)) return;
 
-        MovementInput input = player.movementInput;
-        TimeTracker cooldownTracker = origin.getTimeTracker();
-
-        if (input.jump && !cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.UP_BOOST) && !cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST)) {
-            boostUp(origin);
-            PacketUtils.sendToServer(C2SElytrianAction.upBoost());
-        }
+        boostUp(origin);
+        Packets.sendToServer(C2SElytrianAction.upBoost());
     }
 
 

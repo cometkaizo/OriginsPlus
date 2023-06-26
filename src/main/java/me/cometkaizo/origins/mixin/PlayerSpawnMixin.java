@@ -52,18 +52,62 @@ public final class PlayerSpawnMixin {
                                              PlayerInteractionManager playerinteractionmanager,
                                              ServerPlayerEntity newPlayer) {
             Origin origin = Origin.getOrigin(newPlayer);
-            if (origin != null) {
-                if (origin.hasProperty(PhoenixOriginType.Property.RESPAWN_AT_DEATH)) {
-                    tryRespawnAtDeath(oldPlayer, newPlayer);
-                }
+            if (origin != null && origin.hasProperty(PhoenixOriginType.Property.RESPAWN_AT_DEATH)) {
+                tryRespawnAtDeath(oldPlayer, newPlayer);
             }
         }
 
         private static void tryRespawnAtDeath(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer) {
             if (shouldNotRespawn(oldPlayer)) return;
             Vector3d deathPos = oldPlayer.getPositionVec();
-            newPlayer.setWorld(oldPlayer.world);
-            newPlayer.setLocationAndAngles(deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
+            double x = deathPos.x, y = deathPos.y, z = deathPos.z;
+            float yaw = oldPlayer.rotationYaw, pitch = oldPlayer.rotationPitch;
+            ServerWorld deathWorld = oldPlayer.getServerWorld();
+
+            Origin origin = Origin.getOrigin(newPlayer);
+            if (origin != null) {
+                origin.getTypeData().set(PhoenixOriginType.LAST_DEATH_DIMENSION, deathWorld);
+                origin.getTypeData().set(PhoenixOriginType.LAST_DEATH_POS, deathPos);
+            }
+
+/*
+            deathWorld.getChunkProvider().registerTicket(TicketType.POST_TELEPORT, new ChunkPos(new BlockPos(deathPos)), 1, newPlayer.getEntityId());
+
+            //newPlayer.func_184210_p();
+            newPlayer.revive();
+            try {
+                Field entityBlockPosition = Entity.class.getDeclaredField("entityBlockPosition");
+                entityBlockPosition.setAccessible(true);
+                Main.LOGGER.info("entity block position for {}: {}", newPlayer, entityBlockPosition.get(newPlayer));
+                entityBlockPosition.set(newPlayer, new BlockPos(deathPos));
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+            if (newPlayer.isSleeping())
+                newPlayer.stopSleepInBed(true, true);
+            newPlayer.changeDimension(deathWorld);
+            newPlayer.teleport(deathWorld, x, y, z, yaw, pitch);
+            newPlayer.teleportKeepLoaded(x, y, z);
+            newPlayer.setRotationYawHead(yaw);*/
+            //newPlayer.func_71016_p();
+
+            /*
+
+            if (deathWorld == newPlayer.deathWorld) {
+                newPlayer.connection.setPlayerLocation(deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
+            } else {
+                //newPlayer.deathWorld.getChunk(newPlayer.chunkCoordX, newPlayer.chunkCoordZ).removeEntity(newPlayer);
+                deathWorld.addEntityIfNotDuplicate(newPlayer);
+                newPlayer.teleport(deathWorld, deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
+                newPlayer.teleportKeepLoaded(deathPos.x, deathPos.y, deathPos.z);
+                newPlayer.revive();
+            }*/
+
+            /*
+//            oldPlayer.getServerWorld().getChunkProvider().registerTicket(TicketType.POST_TELEPORT, new ChunkPos(oldPlayer.getPosition()), 1, newPlayer.getEntityId());
+            newPlayer.teleport(oldPlayer.getServerWorld(), deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
+            newPlayer.changeDimension(oldPlayer.getServerWorld());
+            newPlayer.setLocationAndAngles(deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);*/
         }
 
         private static boolean shouldNotRespawn(ServerPlayerEntity oldPlayer) {

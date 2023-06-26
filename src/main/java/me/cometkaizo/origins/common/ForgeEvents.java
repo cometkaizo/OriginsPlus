@@ -1,7 +1,7 @@
 package me.cometkaizo.origins.common;
 
 import me.cometkaizo.origins.Main;
-import me.cometkaizo.origins.network.PacketUtils;
+import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.CapabilityOrigin;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -16,7 +16,7 @@ public class ForgeEvents {
     public static void onCommonSetup(FMLCommonSetupEvent event) {
         LogManager.getLogger().info("FMLCommonSetupEvent was fired");
 
-        PacketUtils.init();
+        Packets.init();
         CapabilityOrigin.register();
     }
 

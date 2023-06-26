@@ -1,8 +1,9 @@
 package me.cometkaizo.origins.origin.client;
 
 import me.cometkaizo.origins.common.OriginDamageSources;
+import me.cometkaizo.origins.network.C2SEnderianAction;
 import me.cometkaizo.origins.network.C2SThrowEnderianPearl;
-import me.cometkaizo.origins.network.PacketUtils;
+import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.SoundUtils;
 import net.minecraft.block.BlockState;
@@ -30,6 +31,17 @@ import static me.cometkaizo.origins.origin.EnderianOriginType.*;
 public class ClientEnderianOriginType {
 
     private static final Random RANDOM = new Random();
+    public static final OriginBarOverlayGui barOverlay = new OriginBarOverlayGui.Builder(OriginBarOverlayGui.Bar.ENDER_PEARL)
+            .disappearWhenFull()
+            .build();
+
+    public static void onActivate(Origin origin) {
+        barOverlay.start();
+    }
+
+    public static void onDeactivate(Origin origin) {
+        barOverlay.stop();
+    }
 
     public static void onEvent(Object event, Origin origin) {
         if (event instanceof TickEvent.ClientTickEvent) {
@@ -46,18 +58,37 @@ public class ClientEnderianOriginType {
         ClientPlayerEntity player = Minecraft.getInstance().player;
         if (!origin.getPlayer().equals(player)) return;
 
+        updateBarOverlay(player);
+        tryApplyPumpkinDamage(origin, player);
+    }
+
+    private static void updateBarOverlay(ClientPlayerEntity player) {
+        barOverlay.setBarPercent(1 - player.getCooldownTracker().getCooldown(Items.ENDER_PEARL, 0) / ENDER_PEARL_COOLDOWN_TIME);
+    }
+
+    private static void tryApplyPumpkinDamage(Origin origin, ClientPlayerEntity player) {
         BlockRayTraceResult rayTraceResult = (BlockRayTraceResult) player.pick(REACH, 0, false);
         if (rayTraceResult.getType() != RayTraceResult.Type.BLOCK) return;
 
         BlockPos blockpos = rayTraceResult.getPos();
         BlockState blockstate = player.world.getBlockState(blockpos);
         if (blockstate.getBlock() == Blocks.CARVED_PUMPKIN) {
-            boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, PUMPKIN_SCARE_DAMAGE / 2F);
-            if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
+            pumpkinScare(origin);
+            Packets.sendToServer(new C2SEnderianAction(Action.PUMPKIN_SCARE));
         } else if (blockstate.getBlock() == Blocks.JACK_O_LANTERN) {
-            boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, JACK_O_LANTERN_SCARE_DAMAGE / 2F);
-            if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1, 1);
+            jackOLanternScare(origin);
+            Packets.sendToServer(new C2SEnderianAction(Action.JACK_O_LANTERN_SCARE));
         }
+    }
+
+    private static void jackOLanternScare(Origin origin) {
+        boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, JACK_O_LANTERN_SCARE_DAMAGE / 2F);
+        if (damaged) SoundUtils.playSound(origin.getPlayer(), SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1, 1);
+    }
+
+    private static void pumpkinScare(Origin origin) {
+        boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, PUMPKIN_SCARE_DAMAGE / 2F);
+        if (damaged) SoundUtils.playSound(origin.getPlayer(), SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
     }
 
     public static void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
@@ -71,7 +102,7 @@ public class ClientEnderianOriginType {
 
         SoundUtils.playSound(player, SoundEvents.ENTITY_ENDER_PEARL_THROW, SoundCategory.NEUTRAL, 0.5F, 0.4F / (RANDOM.nextFloat() * 0.4F + 0.8F));
         player.getCooldownTracker().setCooldown(Items.ENDER_PEARL, 20);
-        PacketUtils.sendToServer(new C2SThrowEnderianPearl());
+        Packets.sendToServer(new C2SThrowEnderianPearl());
     }
 
 

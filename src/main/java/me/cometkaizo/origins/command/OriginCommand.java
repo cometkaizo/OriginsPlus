@@ -5,7 +5,9 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.origin.CapabilityOrigin;
+import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.OriginType;
 import me.cometkaizo.origins.origin.OriginTypes;
 import net.minecraft.command.CommandSource;
@@ -16,6 +18,7 @@ import net.minecraft.command.arguments.MessageArgument;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.StringTextComponent;
+import net.minecraftforge.common.util.LazyOptional;
 
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -79,10 +82,16 @@ public class OriginCommand {
         CommandSource source = context.getSource();
         PlayerEntity target = EntityArgument.getPlayer(context, "target");
 
-        target.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(origin ->
-                feedback(source, target.getName().getString() + "'s origin is '" +
-                        origin.getType().getName() + '\'')
-        );
+        LazyOptional<Origin> capability = target.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY);
+        if (capability == null) {
+            Main.LOGGER.error("Contract violation: optional is null");
+            throw new IllegalStateException();
+        }
+        capability
+                .ifPresent(origin ->
+                        feedback(source, target.getName().getString() + "'s origin is '" +
+                                origin.getType().getName() + '\'')
+                );
 
         if (!target.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).isPresent())
             feedback(source, target.getName().getString() + " does not have an origin");
