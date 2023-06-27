@@ -23,10 +23,12 @@ public class ClientPhoenixOriginType {
             .build();
 
     public static void onActivate(Origin origin) {
+        if (origin.isServerSide()) return;
         barOverlay.start();
     }
 
     public static void onDeactivate(Origin origin) {
+        if (origin.isServerSide()) return;
         barOverlay.stop();
     }
 

@@ -27,7 +27,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class LightningSpawnMixin {
+public final class LightningSpawnMixin {
 
     @Mixin(ServerWorld.class)
     public static abstract class MixedServerWorld extends World {

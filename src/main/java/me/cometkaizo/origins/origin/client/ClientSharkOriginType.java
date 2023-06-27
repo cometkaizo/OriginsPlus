@@ -52,6 +52,7 @@ public class ClientSharkOriginType {
             .build();
 
     public static void onFirstActivate(Origin origin) {
+        if (origin.isServerSide()) return;
         origin.getTypeData().register(RIPTIDE_CHARGE_TIME, 0);
         origin.getTypeData().register(PREV_PITCH, 0F);
         origin.getTypeData().register(PREV_YAW, 0F);
@@ -61,10 +62,12 @@ public class ClientSharkOriginType {
     }
 
     public static void onActivate(Origin origin) {
+        if (origin.isServerSide()) return;
         barOverlay.start();
     }
 
     public static void onDeactivate(Origin origin) {
+        if (origin.isServerSide()) return;
         barOverlay.stop();
     }
 
