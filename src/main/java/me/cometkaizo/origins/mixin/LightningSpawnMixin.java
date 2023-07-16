@@ -42,6 +42,7 @@ public final class LightningSpawnMixin {
         protected void spawnLightningOnElytrian(Chunk chunk, int randomTickSpeed, CallbackInfo info) {
             if (isRaining() && isThundering() && rand.nextInt(ElytrianOriginType.LIGHTNING_SPAWN_CHANCE) == 0) {
                 List<ServerPlayerEntity> players = getStrikeablePlayers();
+                if (players.isEmpty()) return;
                 ServerPlayerEntity player = players.get(rand.nextInt(players.size()));
                 BlockPos position = player.getPosition();
 
@@ -53,10 +54,11 @@ public final class LightningSpawnMixin {
             DifficultyInstance difficultyinstance = this.getDifficultyForLocation(position);
             boolean isEffectOnly = this.getGameRules().getBoolean(GameRules.DO_MOB_SPAWNING) && this.rand.nextDouble() < (double)difficultyinstance.getAdditionalDifficulty() * 0.01D;
 
-            LightningBoltEntity lightningboltentity = EntityType.LIGHTNING_BOLT.create(this);
-            lightningboltentity.moveForced(Vector3d.copyCenteredHorizontally(position));
-            lightningboltentity.setEffectOnly(isEffectOnly);
-            this.addEntity(lightningboltentity);
+            LightningBoltEntity lightningBolt = EntityType.LIGHTNING_BOLT.create(this);
+            if (lightningBolt == null) return;
+            lightningBolt.moveForced(Vector3d.copyCenteredHorizontally(position));
+            lightningBolt.setEffectOnly(isEffectOnly);
+            addEntity(lightningBolt);
         }
 
         private List<ServerPlayerEntity> getStrikeablePlayers() {

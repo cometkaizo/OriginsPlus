@@ -1,6 +1,7 @@
 package me.cometkaizo.origins.mixin;
 
 import me.cometkaizo.origins.Main;
+import me.cometkaizo.origins.common.OriginTags;
 import me.cometkaizo.origins.origin.EnderianOriginType;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.CollUtils;
@@ -25,6 +26,8 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.IItemProvider;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.server.ServerWorld;
+import net.minecraftforge.common.Tags;
+import net.minecraftforge.common.ToolType;
 import net.minecraftforge.common.extensions.IForgeBlock;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Final;
@@ -38,6 +41,7 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static me.cometkaizo.origins.util.ClassUtils.getFieldOfType;
 import static me.cometkaizo.origins.util.ClassUtils.getFieldOrThrow;
@@ -70,7 +74,20 @@ public final class BlockDropMixin {
         }
 
         private static boolean shouldDropNormally(ItemStack tool, BlockState block) {
-            return block == null || tool.canHarvestBlock(block);
+            return block == null ||
+                    (!block.matchesBlock(Blocks.CAKE) && tool.canHarvestBlock(block)) ||
+                    shouldDropNormally(tool.getToolTypes(), block);
+        }
+
+        private static boolean shouldDropNormally(Set<ToolType> toolTypes, BlockState block) {
+            for (ToolType toolType : toolTypes) {
+                Map<ToolType, Tags.IOptionalNamedTag<Block>> dropTags = OriginTags.Blocks.ENDERIAN_NORMAL_DROP_TAGS;
+                if (dropTags.containsKey(toolType) &&
+                        block.isIn(dropTags.get(toolType))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

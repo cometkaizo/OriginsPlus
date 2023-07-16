@@ -33,6 +33,7 @@ public class OriginBarOverlayGui extends AbstractGui {
     protected double barPercent;
     protected boolean visible = true;
     protected Predicate<OriginBarOverlayGui> visibilityRule;
+    protected boolean running;
 
     public OriginBarOverlayGui(Minecraft minecraft, int barIndex, Predicate<OriginBarOverlayGui> visibilityRule) {
         this.minecraft = minecraft;
@@ -41,6 +42,7 @@ public class OriginBarOverlayGui extends AbstractGui {
     }
 
     protected void render(MatrixStack stack) {
+        if (!running) return;
         visible = visibilityRule.test(this);
         if (!visible) return;
         width = minecraft.getMainWindow().getScaledWidth();
@@ -102,9 +104,11 @@ public class OriginBarOverlayGui extends AbstractGui {
     }
 
     public void start() {
+        running = true;
         MinecraftForge.EVENT_BUS.register(this);
     }
     public void stop() {
+        running = false;
         MinecraftForge.EVENT_BUS.unregister(this);
     }
 

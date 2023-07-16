@@ -69,6 +69,9 @@ public class ChooseOriginScreen extends Screen {
     protected ChooseOriginScreen() {
         super(new TranslationTextComponent(Main.MOD_ID + ".screen.choose_origin"));
         this.types = new ArrayList<>(OriginTypes.ORIGINS_REGISTRY.get().getValues());
+        if (this.types.remove(OriginTypes.HUMAN.get())) {
+            this.types.add(0, OriginTypes.HUMAN.get());
+        }
         if (types.isEmpty()) throw new IllegalStateException("No origin options");
     }
 

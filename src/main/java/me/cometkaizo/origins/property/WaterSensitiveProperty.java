@@ -71,7 +71,7 @@ public class WaterSensitiveProperty extends EventInterceptProperty {
 
             if (distance < 16D && entity.equals(player)) {
                 boolean damaged = entity.attackEntityFrom(
-                        OriginDamageSources.causeWaterDamage(player, shooter),
+                        OriginDamageSources.causeIndirectWaterDamage(player, shooter),
                         (float) (16 - distance) / 2 // max damage = 4 hearts
                 );
                 if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1F, 1);

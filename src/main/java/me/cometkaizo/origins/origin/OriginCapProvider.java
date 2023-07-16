@@ -13,14 +13,14 @@ import javax.annotation.Nonnull;
 public class OriginCapProvider implements ICapabilityProvider, INBTSerializable<CompoundNBT> {
 
     private final PlayerEntity player;
-    private Origin origin;
+    protected Origin origin;
     private final LazyOptional<Origin> opt = LazyOptional.of(this::getOrCreateOrigin);
 
     public OriginCapProvider(PlayerEntity player) {
         this.player = player;
     }
 
-    private Origin getOrCreateOrigin() {
+    protected Origin getOrCreateOrigin() {
         if (origin == null) origin = new Origin(OriginTypes.HUMAN.get(), player);
         return origin;
     }

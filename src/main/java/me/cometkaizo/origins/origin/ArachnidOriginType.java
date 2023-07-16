@@ -58,6 +58,7 @@ public class ArachnidOriginType extends AbstractOriginType {
                 type -> new Origin.Description(type,
                         new Origin.Description.Entry(type, "climb"),
                         new Origin.Description.Entry(type, "cobweb_immunity"),
+                        new Origin.Description.Entry(type, "grapple"),
                         new Origin.Description.Entry(type, "species"),
                         new Origin.Description.Entry(type, "poison"),
                         new Origin.Description.Entry(type, "bane_of_arthropods"),
@@ -199,10 +200,8 @@ public class ArachnidOriginType extends AbstractOriginType {
         } else if (event == Action.RESET_FALL_DISTANCE) {
             origin.getPlayer().fallDistance = 0;
         }
-    }
 
-    private static boolean isCanceled(Object event) {
-        return event instanceof Event && ((Event)event).isCanceled();
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onEvent(event, origin));
     }
 
     private void onLivingHurt(LivingHurtEvent event, Origin origin) {

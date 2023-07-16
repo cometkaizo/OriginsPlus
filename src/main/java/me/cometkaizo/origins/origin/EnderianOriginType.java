@@ -103,7 +103,7 @@ public class EnderianOriginType extends AbstractOriginType {
 
         player.addStat(Stats.ITEM_USED.get(Items.ENDER_PEARL));
     }
-//
+
     @Override
     public void onEvent(Object event, Origin origin) {
         super.onEvent(event, origin);
@@ -113,9 +113,7 @@ public class EnderianOriginType extends AbstractOriginType {
             onPearlLand((EntityTeleportEvent.EnderPearl) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
-        }/* else if (event instanceof LivingSetAttackTargetEvent) {
-            onAggro((LivingSetAttackTargetEvent) event, origin);
-        }*/ else if (event instanceof LivingEquipmentChangeEvent) {
+        } else if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof ProjectileImpactEvent.Throwable) {
             onProjectileImpact((ProjectileImpactEvent.Throwable) event, origin);
@@ -123,9 +121,7 @@ public class EnderianOriginType extends AbstractOriginType {
             onUseItem((LivingEntityUseItemEvent) event, origin);
         } else if (event instanceof BlockEvent.BreakEvent) {
             onBlockBreak((BlockEvent.BreakEvent) event, origin);
-        }/* else if (event instanceof LivingHurtEvent) {
-            onLivingHurt((LivingHurtEvent) event, origin);
-        }*/ else if (event == Action.PUMPKIN_SCARE) {
+        }else if (event == Action.PUMPKIN_SCARE) {
             pumpkinScare(origin);
         } else if (event == Action.JACK_O_LANTERN_SCARE) {
             jackOLanternScare(origin);
@@ -268,7 +264,7 @@ public class EnderianOriginType extends AbstractOriginType {
 
             if (distance < 16D && entity.equals(player)) {
                 boolean damaged = entity.attackEntityFrom(
-                        OriginDamageSources.causeWaterDamage(player, shooter),
+                        OriginDamageSources.causeIndirectWaterDamage(player, shooter),
                         (float) (16 - distance) / 2 // max damage = 4 hearts
                 );
                 if (damaged) SoundUtils.playSound(player, SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 1F, 1);

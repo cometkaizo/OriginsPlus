@@ -15,4 +15,8 @@ public class ClientUtils {
     public static PlayerEntity getClientPlayer() {
         return Minecraft.getInstance().player;
     }
+
+    public static Minecraft getMinecraft() {
+        return Minecraft.getInstance();
+    }
 }

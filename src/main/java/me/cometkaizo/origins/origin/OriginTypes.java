@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 @Mod.EventBusSubscriber(modid = Main.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+@SuppressWarnings("unused")
 public final class OriginTypes {
 
     public static final DeferredRegister<OriginType> ORIGINS = DeferredRegister.create(OriginType.class, Main.MOD_ID);
@@ -28,6 +29,7 @@ public final class OriginTypes {
     public static final RegistryObject<PhoenixOriginType> PHOENIX = ORIGINS.register("phoenix_origin", PhoenixOriginType::new);
     public static final RegistryObject<ArachnidOriginType> ARACHNID = ORIGINS.register("arachnid_origin", ArachnidOriginType::new);
     public static final RegistryObject<SlimicianOriginType> SLIMICIAN = ORIGINS.register("slimician_origin", SlimicianOriginType::new);
+    public static final RegistryObject<FoxOriginType> FOX = ORIGINS.register("fox_origin", FoxOriginType::new);
 
 
     @Nullable

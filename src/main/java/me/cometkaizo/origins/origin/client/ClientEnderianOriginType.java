@@ -36,12 +36,12 @@ public class ClientEnderianOriginType {
             .build();
 
     public static void onActivate(Origin origin) {
-        if (origin.isServerSide()) return;
+        if (!origin.isPhysicalClient()) return;
         barOverlay.start();
     }
 
     public static void onDeactivate(Origin origin) {
-        if (origin.isServerSide()) return;
+        if (!origin.isPhysicalClient()) return;
         barOverlay.stop();
     }
 

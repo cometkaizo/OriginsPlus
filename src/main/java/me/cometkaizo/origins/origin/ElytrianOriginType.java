@@ -42,14 +42,15 @@ public class ElytrianOriginType extends AbstractOriginType {
     public static final float BOOST_EXHAUSTION = 0.06F;
     public static final float SNEAK_BOOST_REDUCTION = 0.3F;
     public static final float XP_BONUS_AMP = 0.05F;
-    public static final int MAX_ARMOR_VALUE = 20;
+    public static final int MAX_ARMOR_VALUE = 30;
     public static final float HEAVINESS_AMP = 0.5F;
+    public static final double WEAKNESS_CURVE_AMT = 3.5;
     public static final ParticleSpawner SUPER_BOOST_PARTICLE_SPAWNER = new ParticleSpawner()
             .withParticles(ParticleTypes.CLOUD)
             .withRandomCount(20, 35)
             .withRandomDirection(-3, 0.1, -3, 3, -0.5, 3)
             .withRandomSpeed(0.5, 0.7);
-    public static final int LIGHTNING_SPAWN_CHANCE = 10000;
+    public static final int LIGHTNING_SPAWN_CHANCE = 50000;
     public static final int LIGHTNING_STRIKE_MIN_Y = 120;
 
     public ElytrianOriginType() {
@@ -67,11 +68,11 @@ public class ElytrianOriginType extends AbstractOriginType {
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.PERMANENT_WINGS;
+        return property == Property.WINGS;
     }
 
     public enum Property {
-        PERMANENT_WINGS
+        WINGS
     }
 
     public enum Cooldown implements TimeTracker.Timer {
@@ -95,8 +96,15 @@ public class ElytrianOriginType extends AbstractOriginType {
         FORWARD_BOOST
     }
 
-    private static int getWeaknessAmplifier(int armorValue) {
-        return (int) (getLightness(armorValue) * (FULL_ARMOR_FLIGHT_WEAKNESS_AMP / HEAVINESS_AMP));
+    public static boolean canWearElytra(Origin origin) {
+        return origin == null ||
+                origin.getType() instanceof HumanOriginType ||
+                origin.hasProperty(ElytrianOriginType.Property.WINGS);
+    }
+
+    protected int getWeaknessAmplifier(int armorValue) {
+        float armorPercentage = armorValue / (float) MAX_ARMOR_VALUE;
+        return (int) (Math.pow(armorPercentage, WEAKNESS_CURVE_AMT) * FULL_ARMOR_FLIGHT_WEAKNESS_AMP) - 1;
     }
 
     private static void updateFlightWeakness(PlayerEntity player, int amplifier) {
@@ -192,6 +200,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     @Override
     public void onEvent(Object event, Origin origin) {
         super.onEvent(event, origin);
+        if (isCanceled(event)) return;
         if (event instanceof LivingEquipmentChangeEvent) {
             onEquipmentChange((LivingEquipmentChangeEvent) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
@@ -289,6 +298,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     @Override
     public void onDeactivate(Origin origin) {
         super.onDeactivate(origin);
+        origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_STRENGTH.get());
         origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onDeactivate(origin));
     }
@@ -315,7 +325,7 @@ public class ElytrianOriginType extends AbstractOriginType {
         }
     }
 
-    private static void setSwimming(PlayerEntity player) {
+    public static void setSwimming(PlayerEntity player) {
         player.stopFallFlying();
         player.setSwimming(true);
         player.setSprinting(true);

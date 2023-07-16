@@ -40,7 +40,7 @@ public class C2SAcknowledgeSyncOrigin {
                 origin.setSynchronized();
                 Main.LOGGER.info("Origins synchronized for {} to be {}",
                         sender.getName().getString(),
-                        origin.getType().getName());
+                        origin.getType() == null ? "null" : origin.getType().getName());
             } else {
                 Main.LOGGER.error("Invalid synchronization packet: {} does not have origin capability",
                         sender.getGameProfile().getName());

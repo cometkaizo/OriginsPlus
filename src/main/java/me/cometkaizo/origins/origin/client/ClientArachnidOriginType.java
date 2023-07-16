@@ -1,24 +1,29 @@
 package me.cometkaizo.origins.origin.client;
 
+import com.mojang.blaze3d.matrix.MatrixStack;
+import com.mojang.blaze3d.vertex.IVertexBuilder;
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.network.C2SArachnidAction;
 import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.ArachnidOriginType;
 import me.cometkaizo.origins.origin.Origin;
-import me.cometkaizo.origins.util.DataKey;
-import me.cometkaizo.origins.util.DataManager;
-import me.cometkaizo.origins.util.PhysicsUtils;
-import me.cometkaizo.origins.util.TimeTracker;
+import me.cometkaizo.origins.util.*;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.SnowBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
+import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.MobRenderer;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.BlockRayTraceResult;
+import net.minecraft.util.SoundCategory;
+import net.minecraft.util.SoundEvents;
+import net.minecraft.util.math.*;
 import net.minecraft.util.math.shapes.VoxelShape;
+import net.minecraft.util.math.vector.Matrix4f;
 import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
@@ -34,14 +39,15 @@ public class ClientArachnidOriginType {
     public static final int GRAPPLE_SHOOT_TICK = 7;
     public static final int GRAPPLE_REACH = 30;
     public static final double GRAPPLE_PREV_MOTION_AMP = 0.75;
-    public static final double GRAPPLE_DISENGAGE_DIST_SQ = 3 * 3;
+    public static final double MIN_GRAPPLE_DISENGAGE_DIST_SQ = 3 * 3;
+    public static final double MAX_GRAPPLE_DISENGAGE_DIST_SQ = GRAPPLE_REACH * GRAPPLE_REACH;
     public static final OriginBarOverlayGui barOverlay = new OriginBarOverlayGui.Builder(OriginBarOverlayGui.Bar.POISON)
             .disappearWhenFull()
             .build();
     private static final DataKey<BlockPos.Mutable> WALL_CHECK_POS = DataKey.create(BlockPos.Mutable.class);
     private static final DataKey<Integer> GRAPPLE_TICK = DataKey.create(Integer.class);
-    private static final DataKey<Vector3d> GRAPPLE_POS = DataKey.create(Vector3d.class);
-    private static final DataKey<Double> PREV_GRAPPLE_DISTANCE = DataKey.create(Double.class);
+    private static final DataKey<Vector3d> GRAPPLE_BLOCK = DataKey.create(Vector3d.class);
+    private static final DataKey<Entity> GRAPPLE_ENTITY = DataKey.create(Entity.class);
 
 
     public static void onFirstActivate(Origin origin) {
@@ -49,29 +55,43 @@ public class ClientArachnidOriginType {
         origin.getTypeData().register(IN_COBWEB, false);
         origin.getTypeData().register(WALL_CHECK_POS, new BlockPos.Mutable());
         origin.getTypeData().register(GRAPPLE_TICK, -1);
-        origin.getTypeData().register(GRAPPLE_POS, null);
-        origin.getTypeData().register(PREV_GRAPPLE_DISTANCE, 0D);
+        origin.getTypeData().register(GRAPPLE_BLOCK, null);
+        origin.getTypeData().register(GRAPPLE_ENTITY, null);
     }
 
     public static void onActivate(Origin origin) {
-        if (origin.isServerSide()) return;
+        if (!origin.isPhysicalClient()) return;
         barOverlay.start();
     }
 
     public static void onDeactivate(Origin origin) {
-        if (origin.isServerSide()) return;
+        if (!origin.isPhysicalClient()) return;
         barOverlay.stop();
+    }
+
+    public static void onEvent(Object event, Origin origin) {
+
+        // TODO: 2023-06-29 Disabled until finished
+        /*
+        if (event instanceof RenderPlayerEvent.Pre) {
+            RenderPlayerEvent.Pre e = (RenderPlayerEvent.Pre) event;
+            PlayerEntity player = e.getPlayer();
+            MatrixStack stack = e.getMatrixStack();
+            IRenderTypeBuffer buffer = e.getBuffers();
+            float partialTicks = e.getPartialRenderTick();
+            renderGrapple(player, stack, buffer, partialTicks); // (Origin might not match player origin)
+        }*/
     }
 
     public static void onPlayerSensitiveEvent(Object event, Origin origin) {
         if (event instanceof TickEvent.ClientTickEvent) {
             onClientTick((TickEvent.ClientTickEvent) event, origin);
         } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
-            onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
+            startGrapple(origin);
         }
     }
 
-    private static void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
+    private static void startGrapple(Origin origin) {
         if (origin.isServerSide()) return;
         if (origin.getTypeData().get(GRAPPLE_TICK) < 0)
             origin.getTypeData().set(GRAPPLE_TICK, 0);
@@ -176,8 +196,6 @@ public class ClientArachnidOriginType {
         DataManager data = origin.getTypeData();
         final int tick = data.get(GRAPPLE_TICK);
         if (tick == -1) return;
-        Vector3d grapplePos = data.get(GRAPPLE_POS);
-        double prevDistance = data.get(PREV_GRAPPLE_DISTANCE);
 
         Vector3d playerPos = player.getPositionVec();
 
@@ -187,85 +205,148 @@ public class ClientArachnidOriginType {
         }
 
         if (tick < GRAPPLE_SHOOT_TICK) {
-            // slow motion effect because it helps you aim and also is cool
-            player.setMotion(player.getMotion().scale(0.75));
+            applySlowMotion(player);
         } else if (tick == GRAPPLE_SHOOT_TICK) {
-            BlockRayTraceResult hitResult = PhysicsUtils.rayCastFromEntity(player.world, player, GRAPPLE_REACH);
-            if (hitResult == null) {
-                Main.LOGGER.info("Cancelled because BlockRayTraceResult was found to be null during ray-casting");
-                stopGrapple(player, data);
-                return;
-            }
-            grapplePos = hitResult.getHitVec();
-
-            Main.LOGGER.info("X: " +
-                    grapplePos.getX() + ", Y: " + grapplePos.getY() + ", Z: " + grapplePos.getZ()
-            );
+            SoundUtils.playSound(player, SoundEvents.ENTITY_FISHING_BOBBER_RETRIEVE, SoundCategory.PLAYERS);
+            SoundUtils.playSound(player, SoundEvents.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 0.7F, 0.8F);
+            setGrappleTargetPos(player, data, playerPos);
         }
 
-        if (tick >= GRAPPLE_SHOOT_TICK) { // change to wait for web to actually hit the block
+        Vector3d grapplePos = getGrapplePos(data);
+
+        if (grapplePos != null && tick >= GRAPPLE_SHOOT_TICK) { // TODO: change to wait for web to actually hit the block
             Vector3d prevMotion = player.getMotion();
+            double distanceToGrapplePos = playerPos.squareDistanceTo(grapplePos);
 
-            if (!player.isSneaking()) {
-                if (playerPos.squareDistanceTo(grapplePos) <= GRAPPLE_DISENGAGE_DIST_SQ) {
+            if (distanceToGrapplePos >= MAX_GRAPPLE_DISENGAGE_DIST_SQ) {
+                stopGrapple(player, data);
+            } else if (!player.isSneaking()) {
+                if (distanceToGrapplePos <= MIN_GRAPPLE_DISENGAGE_DIST_SQ) {
                     stopGrapple(player, data);
-                    return;
-                }
-                player.setNoGravity(true);
-                Vector3d pullMotion = PhysicsUtils.getVelocityTowards(playerPos, grapplePos, 0.3);
-                player.setMotion(prevMotion
-                        .scale(GRAPPLE_PREV_MOTION_AMP)
-                        .add(pullMotion));
+                } else updateGrapplePullMotion(player, grapplePos, playerPos, prevMotion);
             } else {
-                player.setNoGravity(false);
-
-                Vector3d oldDeltaMovement = player.getMotion();
-
-                double distance = playerPos.distanceTo(grapplePos);
-
-                /*double correction = prevDistance == -1 ? 0 : distance - prevDistance;
-                Main.LOGGER.info(
-                        "JC distance to center: {}, Previous distance to center: {}, Difference: {}",
-                        distance,
-                        prevDistance,
-                        correction
-                );
-*/
-                //if (prevDistance == -1) {
-                prevDistance = distance;
-                //}
-
-                Vector3d nextVectorFromCenter = playerPos
-                        .add(player.getMotion().scale(1.08))
-                        .subtract(grapplePos);
-                Vector3d nextSwingPosition = grapplePos
-                        .add(nextVectorFromCenter
-                                .normalize()
-                                .scale(distance * 0.95 /*- correction*/)
-                        );
-                player.setMotion(nextSwingPosition.subtract(playerPos).scale(1.05));
-
-
-                Main.LOGGER.info("Distance from center: " + distance +
-                        ", Delta movement (this tick): " + oldDeltaMovement +
-                        ", Next vector from center: " + nextVectorFromCenter +
-                        ", Next vector from center normalized: " + nextVectorFromCenter.normalize() +
-                        ", Next swing position: " + nextSwingPosition +
-                        ", Delta movement: " + player.getMotion());
-
+                updateGrappleSwingMotion(player, grapplePos, playerPos);
             }
-
         }
 
-        data.increase(GRAPPLE_TICK, 1);
-        data.set(GRAPPLE_POS, grapplePos);
-        data.set(PREV_GRAPPLE_DISTANCE, prevDistance);
+        if (data.get(GRAPPLE_TICK) >= 0) data.increase(GRAPPLE_TICK, 1);
+    }
+
+    private static void applySlowMotion(ClientPlayerEntity player) {
+        // slow motion effect because it helps you aim and also is cool
+        player.setMotion(player.getMotion().scale(0.75));
+    }
+
+    private static void setGrappleTargetPos(ClientPlayerEntity player, DataManager data, Vector3d playerPos) {
+        BlockRayTraceResult blockHitResult = PhysicsUtils.rayCastBlocksFromEntity(player.world, player, GRAPPLE_REACH);
+        EntityRayTraceResult entityHitResult = PhysicsUtils.rayCastEntitiesFromEntity(player, GRAPPLE_REACH, Entity::isLiving);
+        if (blockHitResult == null && entityHitResult == null) {
+            Main.LOGGER.info("Grapple did not hit anything; stopping grapple");
+            stopGrapple(player, data);
+            return;
+        }
+        RayTraceResult hitResult = PhysicsUtils.getClosestRayTraceResult(blockHitResult, entityHitResult, playerPos);
+        if (hitResult == blockHitResult) data.set(GRAPPLE_BLOCK, blockHitResult.getHitVec());
+        else data.set(GRAPPLE_ENTITY, entityHitResult.getEntity());
+    }
+
+    private static void updateGrapplePullMotion(ClientPlayerEntity player, Vector3d grapplePos, Vector3d playerPos, Vector3d prevMotion) {
+        player.setNoGravity(true);
+        Vector3d pullMotion = PhysicsUtils.getVelocityTowards(playerPos, grapplePos, 0.3);
+        player.setMotion(prevMotion
+                .scale(GRAPPLE_PREV_MOTION_AMP)
+                .add(pullMotion));
+    }
+
+    private static void updateGrappleSwingMotion(ClientPlayerEntity player, Vector3d grapplePos, Vector3d playerPos) {
+        player.setNoGravity(false);
+
+        Vector3d oldDeltaMovement = player.getMotion();
+
+        double distance = playerPos.distanceTo(grapplePos);
+
+        Vector3d nextVectorFromCenter = playerPos
+                .add(player.getMotion().scale(1.08))
+                .subtract(grapplePos);
+        Vector3d nextSwingPosition = grapplePos
+                .add(nextVectorFromCenter
+                        .normalize()
+                        .scale(distance * 0.95)
+                );
+        player.setMotion(nextSwingPosition.subtract(playerPos).scale(1.05));
+
+
+        Main.LOGGER.info("Distance from center: " + distance +
+                ", Delta movement (this tick): " + oldDeltaMovement +
+                ", Next vector from center: " + nextVectorFromCenter +
+                ", Next vector from center normalized: " + nextVectorFromCenter.normalize() +
+                ", Next swing position: " + nextSwingPosition +
+                ", Delta movement: " + player.getMotion());
+    }
+
+    private static Vector3d getGrapplePos(DataManager data) {
+        Vector3d grappleBlock = data.get(GRAPPLE_BLOCK);
+        if (grappleBlock != null) return grappleBlock;
+        Entity grappleEntity = data.get(GRAPPLE_ENTITY);
+        if (grappleEntity != null) {
+            if (grappleEntity.isAlive()) return grappleEntity.getPositionVec();
+            else data.set(GRAPPLE_ENTITY, null);
+        }
+        return null;
     }
 
     private static void stopGrapple(ClientPlayerEntity player, DataManager data) {
         player.setNoGravity(false);
         data.set(GRAPPLE_TICK, -1);
-        data.set(GRAPPLE_POS, null);
-        data.set(PREV_GRAPPLE_DISTANCE, 0D);
+        data.set(GRAPPLE_BLOCK, null);
+        data.set(GRAPPLE_ENTITY, null);
     }
+
+
+    private static void renderGrapple(PlayerEntity player, MatrixStack matrixStack, IRenderTypeBuffer buffer, float partialTicks) {
+        Origin origin = Origin.getOrigin(player);
+        if (origin == null) return;
+        if (!(origin.getType() instanceof ArachnidOriginType)) return;
+        Vector3d grapplePos = getGrapplePos(origin.getTypeData());
+        if (grapplePos == null) return;
+        Vector3d holdPosition = player.getLeashPosition(partialTicks);
+        Vector3d delta = grapplePos.subtract(holdPosition);
+
+        matrixStack.push();
+        double d0 = Math.PI / 2/*(double)(MathHelper.lerp(partialTicks, player.renderYawOffset, player.prevRenderYawOffset) * ((float)Math.PI / 180F)) + (Math.PI / 2D)*/;
+        //player.getLeashStartPosition();
+        double d1 = Math.cos(d0) * delta.z + Math.sin(d0) * delta.x;
+        double d2 = Math.sin(d0) * delta.z - Math.cos(d0) * delta.x;
+        double d3 = MathHelper.lerp(partialTicks, player.prevPosX, player.getPosX()) + d1;
+        double d4 = MathHelper.lerp(partialTicks, player.prevPosY, player.getPosY()) + delta.y;
+        double d5 = MathHelper.lerp(partialTicks, player.prevPosZ, player.getPosZ()) + d2;
+        matrixStack.translate(d1, delta.y, d2);
+        float f = (float)(holdPosition.x - d3);
+        float f1 = (float)(holdPosition.y - d4);
+        float f2 = (float)(holdPosition.z - d5);
+        float f3 = 0.025F;
+        IVertexBuilder ivertexbuilder = buffer.getBuffer(RenderType.getLeash());
+        Matrix4f matrix4f = matrixStack.getLast().getMatrix();
+        float f4 = MathHelper.fastInvSqrt(f * f + f2 * f2) * f3 / 2.0F;
+        float f5 = f2 * f4;
+        float f6 = f * f4;
+        BlockPos playerEyePos = new BlockPos(holdPosition);
+        BlockPos grappleBlockPos = new BlockPos(grapplePos);
+        int i = getBlockLight(player.world, grappleBlockPos);
+        int j = getBlockLight(player, playerEyePos);
+        int k = player.world.getLightFor(LightType.SKY, playerEyePos);
+        int l = player.world.getLightFor(LightType.SKY, grappleBlockPos);
+        MobRenderer.renderSide(ivertexbuilder, matrix4f, f, f1, f2, i, j, k, l, f3, 0.025F, f5, f6);
+        MobRenderer.renderSide(ivertexbuilder, matrix4f, f, f1, f2, i, j, k, l, f3, 0.0F, f5, f6);
+        matrixStack.pop();
+    }
+
+    private static int getBlockLight(Entity entity, BlockPos pos) {
+        return entity.isBurning() ? 15 : entity.world.getLightFor(LightType.BLOCK, pos);
+    }
+
+    private static int getBlockLight(World world, BlockPos pos) {
+        return world.getLightFor(LightType.BLOCK, pos);
+    }
+
 }

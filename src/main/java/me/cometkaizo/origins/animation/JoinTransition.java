@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 public class JoinTransition implements Transition {
     private final List<Transition> animations;
-    private final List<Integer> durations;
+    private final List<Long> durations;
     private final int totalDuration;
 
     private JoinTransition(List<Transition> animations) {
@@ -27,11 +27,11 @@ public class JoinTransition implements Transition {
     }
 
     @Override
-    public double apply(int lengthPlayed) {
-        int lengthLeft = MathHelper.clamp(lengthPlayed, 0, totalDuration);
+    public double apply(long lengthPlayed) {
+        long lengthLeft = MathHelper.clamp(lengthPlayed, 0, totalDuration);
 
         for (int index = 0; index < durations.size(); index++) {
-            int duration = durations.get(index);
+            long duration = durations.get(index);
 
             lengthLeft -= duration;
             if (lengthLeft <= 0) return applyOnAnimation(index, duration + lengthLeft);
@@ -40,13 +40,13 @@ public class JoinTransition implements Transition {
         throw new IllegalStateException("Unexpected state: length played " + lengthPlayed + " is outside range, durations: " + durations + ", total duration: " + totalDuration);
     }
 
-    private double applyOnAnimation(int index, int lengthPlayed) {
+    private double applyOnAnimation(int index, long lengthPlayed) {
         Transition animation = animations.get(index);
         return animation.apply(lengthPlayed);
     }
 
     @Override
-    public int getDuration() {
+    public long getDuration() {
         return totalDuration;
     }
 }

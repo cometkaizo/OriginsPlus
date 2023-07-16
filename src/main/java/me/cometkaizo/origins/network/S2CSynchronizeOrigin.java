@@ -8,6 +8,7 @@ import me.cometkaizo.origins.origin.OriginTypes;
 import me.cometkaizo.origins.origin.client.ClientOrigin;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.world.World;
 import net.minecraftforge.api.distmarker.Dist;
@@ -23,20 +24,24 @@ public class S2CSynchronizeOrigin {
     public static final Logger LOGGER = LogManager.getLogger();
     public final int playerId;
     public final String originType;
+    public final CompoundNBT typeData;
 
-    public S2CSynchronizeOrigin(PlayerEntity player, OriginType type) {
+    public S2CSynchronizeOrigin(PlayerEntity player, OriginType type, CompoundNBT typeData) {
         this.playerId = player.getEntityId();
         this.originType = String.valueOf(OriginTypes.getKey(type));
+        this.typeData = typeData;
     }
 
     public S2CSynchronizeOrigin(PacketBuffer buffer) {
         playerId = buffer.readInt();
         originType = buffer.readString();
+        typeData = buffer.readCompoundTag();
     }
 
     public void toBytes(PacketBuffer buffer) {
         buffer.writeInt(playerId);
         buffer.writeString(originType);
+        buffer.writeCompoundTag(typeData);
     }
 
     public boolean handle(Supplier<NetworkEvent.Context> supplier) {
@@ -49,9 +54,13 @@ public class S2CSynchronizeOrigin {
             }
 
             Entity entity = world.getEntityByID(playerId);
-            if (entity == null) Main.LOGGER.error("Invalid synchronization packet: no entity with id {}", playerId);
+            if (entity == null) {
+                Main.LOGGER.error("No entity with id {}; sending removal packet", playerId);
+                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                return;
+            }
             if (!(entity instanceof PlayerEntity)) {
-                Main.LOGGER.info("Entity is null or is not player: {}, sending removal packet", entity);
+                Main.LOGGER.info("Entity {} is not player; sending removal packet", entity);
                 DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
                 return;
             }
@@ -61,7 +70,7 @@ public class S2CSynchronizeOrigin {
             Origin origin = Origin.getOrigin(player);
 
             if (origin != null) {
-                origin.acceptSynchronization(player, type);
+                origin.acceptSynchronization(player, type, typeData);
             } else {
                 Main.LOGGER.info("No origin, sending removal packet");
                 DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);

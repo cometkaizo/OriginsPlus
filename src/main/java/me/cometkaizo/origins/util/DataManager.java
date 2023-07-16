@@ -5,6 +5,7 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.util.INBTSerializable;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -69,25 +70,40 @@ public class DataManager implements INBTSerializable<INBT> {
             }
         });
     }
+    public <T extends Serializable> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
+        Objects.requireNonNull(key, "Key cannot be null");
+        if (entries.containsKey(key.getId())) return;
+        addSavedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer());
+    }
 
-    public <T extends INBTSerializable<INBT>> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
-        registerSaved(key, defaultValue, namespace, new INBTSerializer<T>() {
-            @Override
-            public INBT serialize(T object) {
-                return object.serializeNBT();
-            }
-            @Override
-            public T deserialize(INBT nbt) {
-                defaultValue.deserializeNBT(nbt);
-                return defaultValue;
-            }
-        });
+    public <N extends INBT, T extends INBTSerializable<N>> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
+        Objects.requireNonNull(key, "Key cannot be null");
+        if (entries.containsKey(key.getId())) return;
+        addSavedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer(defaultValue));
     }
 
     public <T> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace, INBTSerializer<T> serializer) {
         Objects.requireNonNull(key, "Key cannot be null");
         if (entries.containsKey(key.getId())) return;
         addSavedEntry(key.getId(), key, defaultValue, namespace, serializer);
+    }
+
+    public <T extends Serializable> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
+        Objects.requireNonNull(key, "Key cannot be null");
+        if (entries.containsKey(key.getId())) return;
+        addSyncedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer());
+    }
+
+    public <N extends INBT, T extends INBTSerializable<N>> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
+        Objects.requireNonNull(key, "Key cannot be null");
+        if (entries.containsKey(key.getId())) return;
+        addSyncedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer(defaultValue));
+    }
+
+    public <T> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace, INBTSerializer<T> serializer) {
+        Objects.requireNonNull(key, "Key cannot be null");
+        if (entries.containsKey(key.getId())) return;
+        addSyncedEntry(key.getId(), key, defaultValue, namespace, serializer);
     }
 
     public <T> void register(@Nonnull DataKey<T> key, T defaultValue) {
@@ -110,8 +126,13 @@ public class DataManager implements INBTSerializable<INBT> {
         addEntry(id, entry);
     }
 
+    private <T> void addSyncedEntry(String id, @Nonnull DataKey<T> key, T value, ResourceLocation namespace, INBTSerializer<T> serializer) {
+        Entry<T> entry = new SerializableEntry<>(key, value, namespace, serializer, false);
+        addEntry(id, entry);
+    }
+
     private <T> void addSavedEntry(String id, @Nonnull DataKey<T> key, T value, ResourceLocation namespace, INBTSerializer<T> serializer) {
-        Entry<T> entry = new SavedEntry<>(key, value, namespace, serializer);
+        Entry<T> entry = new SerializableEntry<>(key, value, namespace, serializer, true);
         addEntry(id, entry);
     }
 
@@ -187,14 +208,49 @@ public class DataManager implements INBTSerializable<INBT> {
         set(key, get(key) - value);
     }
 
+
+    public boolean contains(DataKey<?> key) {
+        this.lock.readLock().lock();
+
+        try {
+            return entries.containsKey(key.getId());
+        } catch (Throwable throwable) {
+            throw new RuntimeException(throwable);
+        } finally {
+            this.lock.readLock().unlock();
+        }
+    }
+
+
+    public CompoundNBT serializeSynced() {
+        CompoundNBT nbt = new CompoundNBT();
+        for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
+            Entry<?> entry = data.getValue();
+            if (entry instanceof SerializableEntry) {
+                SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
+                nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
+            }
+        }
+        return nbt;
+    }
+
+    public void deserializeSynced(CompoundNBT nbt) {
+        for (String key : nbt.keySet()) {
+            INBT entryData = nbt.get(key);
+            SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
+            serializableEntry.deserializeNBT(entryData);
+        }
+    }
+
     @Override
     public CompoundNBT serializeNBT() {
         CompoundNBT nbt = new CompoundNBT();
         for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
             Entry<?> entry = data.getValue();
-            if (entry instanceof SavedEntry) {
-                SavedEntry<?> savedEntry = (SavedEntry<?>) entry;
-                nbt.put(savedEntry.namespace.toString(), savedEntry.serializeNBT());
+            if (entry instanceof SerializableEntry) {
+                SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
+                if (!serializableEntry.save) continue;
+                nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
             }
         }
         return nbt;
@@ -205,16 +261,17 @@ public class DataManager implements INBTSerializable<INBT> {
         CompoundNBT compound = (CompoundNBT) inbt;
         for (String key : compound.keySet()) {
             INBT entryData = compound.get(key);
-            SavedEntry<?> savedEntry = getSavedEntry(ResourceLocation.create(key, ':'));
-            savedEntry.deserializeNBT(entryData);
+            SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
+            serializableEntry.deserializeNBT(entryData);
         }
     }
 
-    private SavedEntry<?> getSavedEntry(ResourceLocation namespace) {
-        return (SavedEntry<?>) entries.values().stream()
-                .filter(e -> e instanceof SavedEntry && ((SavedEntry<?>) e).namespace.equals(namespace))
+    private SerializableEntry<?> getSerializableEntry(ResourceLocation namespace) {
+        return (SerializableEntry<?>) entries.values().stream()
+                .filter(e -> e instanceof SerializableEntry)
+                .filter(e -> ((SerializableEntry<?>) e).namespace.equals(namespace))
                 .findAny()
-                .orElseThrow(IllegalArgumentException::new);
+                .orElseThrow(() -> new IllegalArgumentException("No saved entry with namespace '" + namespace + "'; available entries: " + entries));
     }
 
     @Override
@@ -226,9 +283,9 @@ public class DataManager implements INBTSerializable<INBT> {
                 ).collect(Collectors.joining(", \n", "[", "]"));
     }
 
-    private static class Entry<T> {
-        @Nonnull DataKey<T> key;
-        T value;
+    protected static class Entry<T> {
+        protected @Nonnull DataKey<T> key;
+        protected T value;
 
         Entry(@Nonnull DataKey<T> key, T value) {
             Objects.requireNonNull(key, "Key cannot be null");
@@ -245,14 +302,16 @@ public class DataManager implements INBTSerializable<INBT> {
         }
     }
 
-    private static class SavedEntry<T> extends Entry<T> implements INBTSerializable<INBT> {
-        ResourceLocation namespace;
-        INBTSerializer<T> serializer;
+    protected static class SerializableEntry<T> extends Entry<T> implements INBTSerializable<INBT> {
+        protected ResourceLocation namespace;
+        protected INBTSerializer<T> serializer;
+        protected boolean save;
 
-        SavedEntry(@Nonnull DataKey<T> key, T value, ResourceLocation namespace, INBTSerializer<T> serializer) {
+        SerializableEntry(@Nonnull DataKey<T> key, T value, ResourceLocation namespace, INBTSerializer<T> serializer, boolean save) {
             super(key, value);
             this.namespace = namespace;
             this.serializer = serializer;
+            this.save = save;
         }
 
         @Override

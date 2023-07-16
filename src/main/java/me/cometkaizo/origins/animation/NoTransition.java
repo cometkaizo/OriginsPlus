@@ -14,12 +14,12 @@ public class NoTransition implements Transition {
         if (duration < 0) throw new IllegalArgumentException("Duration " + duration + " cannot be negative");
     }
 
-    public double apply(int lengthPlayed) {
+    public double apply(long lengthPlayed) {
         return value;
     }
 
     @Override
-    public int getDuration() {
+    public long getDuration() {
         return (int) duration;
     }
 

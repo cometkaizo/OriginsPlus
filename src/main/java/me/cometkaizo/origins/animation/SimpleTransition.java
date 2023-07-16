@@ -27,14 +27,14 @@ public class SimpleTransition implements Transition {
         this(start, end, ease, (int) ((end - start) / speed));
     }
 
-    public double apply(int lengthPlayed) {
+    public double apply(long lengthPlayed) {
         double progress = lengthPlayed / duration;
         double easedProgress = ease.apply(MathHelper.clamp(progress, 0, 1));
         return MathHelper.lerp(easedProgress, start, end);
     }
 
     @Override
-    public int getDuration() {
+    public long getDuration() {
         return (int) duration;
     }
 

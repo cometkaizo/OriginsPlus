@@ -22,10 +22,10 @@ import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.common.ForgeMod;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityEvent;
+import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingFallEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.fml.network.PacketDistributor;
 
 import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
@@ -115,9 +115,15 @@ public class SlimicianOriginType extends AbstractOriginType {
         updateAttributes(origin);
     }
 
+    @Override
+    public void acceptSynchronization(Origin origin) {
+        super.acceptSynchronization(origin);
+        origin.getPlayer().recalculateSize();
+    }
+
     private void sendSyncShrinkCountPacket(Origin origin) {
         PlayerEntity player = origin.getPlayer();
-        Packets.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new S2CSlimicianSynchronize(player, getShrinkCount(origin)));
+        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSlimicianSynchronize(player, getShrinkCount(origin)));
     }
 
     public void acceptSynchronization(Origin origin, int shrinkCount) {
@@ -138,9 +144,9 @@ public class SlimicianOriginType extends AbstractOriginType {
         double defaultValue = ForgeMod.REACH_DISTANCE.get().getDefaultValue();
         switch (getShrinkCount(origin)) {
             case 0: return defaultValue;
-            case 1: return defaultValue * 3.5/5;
+            case 1: return defaultValue * 4.5/5;
             case 2:
-            default: return defaultValue * 2/5;
+            default: return defaultValue * 3.5/5;
         }
     }
 
@@ -174,8 +180,10 @@ public class SlimicianOriginType extends AbstractOriginType {
             tryIncreaseShrinkCount(origin);
         } else if (event == Action.RESPAWN) {
             resetShrinkCount(origin);
+            origin.getPlayer().setHealth(origin.getPlayer().getMaxHealth());
         } else if (event == Action.RESET_FALL_DISTANCE) {
-            origin.getPlayer().fallDistance = 0;
+            PlayerEntity player = origin.getPlayer();
+            if (player != null) player.fallDistance = 0;
         } else if (event instanceof EntityEvent.Size) {
             onRecalcSize((EntityEvent.Size) event, origin);
         } else if (event instanceof LivingHurtEvent) {
@@ -190,23 +198,26 @@ public class SlimicianOriginType extends AbstractOriginType {
         if (event instanceof LivingFallEvent) {
             onPlayerFall((LivingFallEvent) event, origin);
         } else if (event instanceof LivingHurtEvent) {
+            // note to self: living hurt event contains the raw amount of damage (before armor and such)
+            // DO NOT use that event for detecting when a player will die
+            // use LivingDamageEvent instead
             onPlayerHurt((LivingHurtEvent) event, origin);
+        } else if (event instanceof LivingDamageEvent) {
+            onPlayerDamage((LivingDamageEvent) event, origin);
         } else if (event instanceof PlayerEvent.PlayerRespawnEvent) {
             onPlayerRespawn(origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
-            //if (!origin.isServerSide()) Main.LOGGER.info("Player: " + origin.getPlayer());
             if (origin.getTypeData().get(SHOULD_UPDATE)) {
-                if (origin.isServerSide()) sendSyncShrinkCountPacket(origin);
+                if (origin.isServerSide()) {
+                    origin.setShouldSynchronize();
+                    sendSyncShrinkCountPacket(origin);
+                }
                 origin.getPlayer().recalculateSize();
                 origin.getTypeData().set(SHOULD_UPDATE, false);
             }
         }
 
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSlimicianOriginType.onPlayerSensitiveEvent(event, origin));
-    }
-
-    private static boolean isCanceled(Object event) {
-        return event instanceof Event && ((Event)event).isCanceled();
     }
 
     private void onPlayerFall(LivingFallEvent event, Origin origin) {
@@ -225,7 +236,7 @@ public class SlimicianOriginType extends AbstractOriginType {
     }
 
     private static void sendRespawnPacket(PlayerEntity player) {
-        Packets.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new S2CSlimicianAction(player, Action.RESPAWN));
+        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSlimicianAction(player, Action.RESPAWN));
     }
 
     private void onPlayerHurt(LivingHurtEvent event, Origin origin) {
@@ -234,28 +245,27 @@ public class SlimicianOriginType extends AbstractOriginType {
         if (event.getSource() == DamageSource.FALL && !player.isSuppressingBounce()) {
             event.setCanceled(true);
         }
+    }
 
+    private void onPlayerDamage(LivingDamageEvent event, Origin origin) {
         if (!origin.isServerSide()) return;
+        PlayerEntity player = origin.getPlayer();
 
         if (player.getHealth() - event.getAmount() <= 0) {
-            // disabled until finished
             beforeDeath(event, origin);
             sendBeforeDeathPacket(player);
         }
     }
 
     private static void sendBeforeDeathPacket(PlayerEntity player) {
-        Packets.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new S2CSlimicianAction(player, Action.BEFORE_DEATH));
+        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSlimicianAction(player, Action.BEFORE_DEATH));
     }
 
-    private void beforeDeath(LivingHurtEvent event, Origin origin) {
+    private void beforeDeath(LivingDamageEvent event, Origin origin) {
         PlayerEntity player = origin.getPlayer();
 
         boolean shrunk = tryIncreaseShrinkCount(origin);
-        if (shrunk) {
-            event.setAmount(0);
-            player.setHealth(player.getMaxHealth());
-        }
+        if (shrunk) event.setAmount(0);
         player.recalculateSize();
     }
 
@@ -264,7 +274,10 @@ public class SlimicianOriginType extends AbstractOriginType {
         if (dataManager.get(SHRINK_COUNT) < MAX_SHRINK_COUNT) {
             dataManager.increase(SHRINK_COUNT, 1);
             updateAttributes(origin);
-            origin.getPlayer().recalculateSize();
+
+            PlayerEntity player = origin.getPlayer();
+            player.setHealth(player.getMaxHealth());
+            player.recalculateSize();
             origin.getTypeData().set(SHOULD_UPDATE, true);
             return true;
         } else return false;

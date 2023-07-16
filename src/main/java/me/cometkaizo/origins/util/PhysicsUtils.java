@@ -1,11 +1,14 @@
 package me.cometkaizo.origins.util;
 
 import net.minecraft.entity.Entity;
-import net.minecraft.util.math.BlockRayTraceResult;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RayTraceContext;
+import net.minecraft.entity.projectile.ProjectileHelper;
+import net.minecraft.util.math.*;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+
+import java.util.function.Predicate;
 
 public final class PhysicsUtils {
 
@@ -17,7 +20,7 @@ public final class PhysicsUtils {
                 .scale(speed);
     }
 
-    public static BlockRayTraceResult rayCastFromEntity(World world, Entity entity, float maxDistance) {
+    public static BlockRayTraceResult rayCastBlocksFromEntity(World world, Entity entity, float maxDistance) {
         float xRot = entity.rotationPitch;
         float yRot = entity.rotationYaw;
         Vector3d eyePosition = entity.getEyePosition(0);
@@ -29,9 +32,30 @@ public final class PhysicsUtils {
         float f6 = f3 * f4;
         float f7 = f2 * f4;
 
-        Vector3d Vector3d1 = eyePosition.add((double)f6 * maxDistance, (double)f5 * maxDistance, (double)f7 * maxDistance);
-        BlockRayTraceResult result = world.rayTraceBlocks(new RayTraceContext(eyePosition, Vector3d1, RayTraceContext.BlockMode.COLLIDER, RayTraceContext.FluidMode.NONE, entity));
+        Vector3d vector3d1 = eyePosition.add((double)f6 * maxDistance, (double)f5 * maxDistance, (double)f7 * maxDistance);
+        BlockRayTraceResult result = world.rayTraceBlocks(new RayTraceContext(eyePosition, vector3d1, RayTraceContext.BlockMode.COLLIDER, RayTraceContext.FluidMode.NONE, entity));
         return world.getBlockState(result.getPos()).getMaterial().isSolid() ? result : null;
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public static EntityRayTraceResult rayCastEntitiesFromEntity(Entity entity, float maxDistance, Predicate<Entity> condition) {
+        Vector3d eyePosition = entity.getEyePosition(0);
+        Vector3d look = entity.getLook(1);
+        Vector3d scaledLook = look.scale(maxDistance);
+        Vector3d rayEnd = eyePosition.add(scaledLook);
+
+        AxisAlignedBB detectionArea = entity.getBoundingBox().expand(scaledLook).grow(1);
+
+        EntityRayTraceResult result = ProjectileHelper.rayTraceEntities(entity, eyePosition, rayEnd, detectionArea, condition, maxDistance * maxDistance);
+        return result != null && result.getType() != RayTraceResult.Type.MISS ? result : null;
+    }
+
+    public static Vector3d getClosestVector(Vector3d a, Vector3d b, Vector3d target) {
+        return b == null || (a != null && a.squareDistanceTo(target) < b.squareDistanceTo(target)) ? a : b;
+    }
+
+    public static RayTraceResult getClosestRayTraceResult(RayTraceResult a, RayTraceResult b, Vector3d target) {
+        return b == null || a != null && a.getHitVec().squareDistanceTo(target) < b.getHitVec().squareDistanceTo(target) ? a : b;
     }
 
     private PhysicsUtils() {

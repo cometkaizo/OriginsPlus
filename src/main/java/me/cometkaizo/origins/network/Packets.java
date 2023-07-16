@@ -44,6 +44,9 @@ public class Packets {
         CHANNEL.messageBuilder(S2CAcknowledgeChooseOrigin.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CAcknowledgeChooseOrigin::toBytes).decoder(S2CAcknowledgeChooseOrigin::new)
                 .consumer(S2CAcknowledgeChooseOrigin::handle).add();
+        CHANNEL.messageBuilder(S2CCheckModVersion.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CCheckModVersion::toBytes).decoder(S2CCheckModVersion::new)
+                .consumer(S2CCheckModVersion::handle).add();
 
         CHANNEL.messageBuilder(C2SUsePower.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SUsePower::toBytes).decoder(C2SUsePower::new)
@@ -75,6 +78,9 @@ public class Packets {
         CHANNEL.messageBuilder(C2SRemoveOrigin.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SRemoveOrigin::toBytes).decoder(C2SRemoveOrigin::new)
                 .consumer(C2SRemoveOrigin::handle).add();
+        CHANNEL.messageBuilder(C2SHandleModVersion.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SHandleModVersion::toBytes).decoder(C2SHandleModVersion::new)
+                .consumer(C2SHandleModVersion::handle).add();
 
 
         LOGGER.info("Initialized Packets on Channel {}", CHANNEL);

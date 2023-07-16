@@ -2,18 +2,18 @@ package me.cometkaizo.origins.animation;
 
 public interface Transition {
 
-    default double apply(int startTick, int currentTick) {
+    default double apply(long startTick, long currentTick) {
         return apply(currentTick - startTick);
     }
 
-    double apply(int lengthPlayed);
+    double apply(long lengthPlayed);
 
-    default boolean isFinished(int startTick, int currentTick) {
-        int lengthPlayed = currentTick - startTick;
+    default boolean isFinished(long startTick, long currentTick) {
+        long lengthPlayed = currentTick - startTick;
         return lengthPlayed < 0 || lengthPlayed >= getDuration();
     }
 
-    int getDuration();
+    long getDuration();
 
     default Transition andThen(Transition other) {
         return JoinTransition.of(this, other);

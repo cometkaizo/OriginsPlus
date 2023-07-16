@@ -29,13 +29,15 @@ public interface OriginType extends IForgeRegistryEntry<OriginType>, Serializabl
     void onFirstActivate(Origin origin);
     void onActivate(Origin origin);
     void onDeactivate(Origin origin);
-    String getName();
 
     /**
      * Initializes this origin type. Called <i>after</i> the registry is registered.
      */
     void init();
+    void acceptSynchronization(Origin origin);
 
+    String getName();
     Origin.Description getDescription();
     ItemStack getIcon();
+
 }

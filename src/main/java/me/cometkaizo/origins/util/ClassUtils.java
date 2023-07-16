@@ -60,4 +60,36 @@ public class ClassUtils {
         }
         throw new UnsupportedOperationException("No field of type " + fieldType + " in " + clazz + ", all fields: " + Arrays.toString(clazz.getDeclaredFields()));
     }
+
+    public static void setFieldOrThrow(String fieldName, @Nonnull Object reference, Object value) {
+        try {
+            Field field = reference.getClass().getField(fieldName);
+            throwIfIncompatibleTypes(fieldName, value, field);
+            field.setAccessible(true);
+            field.set(reference, value);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new UnsupportedOperationException(e);
+        }
+    }
+
+    public static void setFieldOrThrow(String fieldName, @Nonnull Class<?> clazz, Object value) {
+        try {
+            Field field = clazz.getField(fieldName);
+            throwIfIncompatibleTypes(fieldName, value, field);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new UnsupportedOperationException(e);
+        }
+    }
+
+    private static void throwIfIncompatibleTypes(String fieldName, Object value, Field field) {
+        if ((field.getType().isPrimitive() && value == null) || (value != null && !field.getType().isAssignableFrom(value.getClass()))) {
+            throw new ClassCastException("Cannot set value '" + value +
+                    "' of " + (value == null ? "type {null}" : value.getClass()) +
+                    " to field '" + fieldName +
+                    "' of " + field.getType() +
+                    " in " + field.getDeclaringClass());
+        }
+    }
 }

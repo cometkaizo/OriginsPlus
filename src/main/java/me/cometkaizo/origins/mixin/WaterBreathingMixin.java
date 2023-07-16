@@ -1,5 +1,6 @@
 package me.cometkaizo.origins.mixin;
 
+import me.cometkaizo.origins.common.OriginDamageSources;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.SharkOriginType;
 import net.minecraft.client.gui.AbstractGui;
@@ -69,7 +70,7 @@ public final class WaterBreathingMixin {
             if (source == DamageSource.DROWN) {
                 Origin origin = Origin.getOrigin(entity);
                 if (origin != null && origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY)) {
-                    return attackEntityFrom(DamageSource.DRYOUT, amount);
+                    return attackEntityFrom(OriginDamageSources.DEHYDRATION, amount);
                 }
             }
             return attackEntityFrom(source, amount);

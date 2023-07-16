@@ -4,6 +4,10 @@ import me.cometkaizo.origins.common.OriginTags;
 import me.cometkaizo.origins.event.PlayerItemReceivedEvent;
 import me.cometkaizo.origins.origin.client.ClientSharkOriginType;
 import me.cometkaizo.origins.util.TimeTracker;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantments;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
 import net.minecraft.entity.ai.attributes.Attributes;
 import net.minecraft.entity.player.PlayerEntity;
@@ -14,10 +18,12 @@ import net.minecraft.nbt.INBT;
 import net.minecraft.nbt.ListNBT;
 import net.minecraft.potion.*;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.DamageSource;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
@@ -31,11 +37,12 @@ import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 public class SharkOriginType extends AbstractOriginType {
     public static final Logger LOGGER = LogManager.getLogger();
 
+    public static final float IMPALING_DAMAGE_LEVEL_AMP = 1.5F;
     public static final double ITEM_PULL_AMP = 0.07;
     public static final int WATER_BOTTLE_WATER_BREATHING_DUR = 5 * 20;
-    public static final int SEAFOOD_HEALING_AMP = 3;
+    public static final float SEAFOOD_HEALING_AMP = 3;
     private static final UUID TRIDENT_MODIFIER_UUID = UUID.fromString("728547c8-936c-4042-b656-08545878d49f");
-    public static final int TRIDENT_SPEED_MODIFIER = 2;
+    public static final int TRIDENT_SPEED_MODIFIER = 1;
     public static final int TRIDENT_DAMAGE_MODIFIER = 2;
 
     public SharkOriginType() {
@@ -66,14 +73,16 @@ public class SharkOriginType extends AbstractOriginType {
     public enum Property {
         WATER_BREATHING_PROPERTY,
         AQUA_AFFINITY,
-        PULL_DROPPED_ITEMS_UNDERWATER
+        PULL_DROPPED_ITEMS_UNDERWATER,
+        VULNERABLE_TO_IMPALING
     }
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
         return property == Property.WATER_BREATHING_PROPERTY ||
                 property == Property.AQUA_AFFINITY ||
-                property == Property.PULL_DROPPED_ITEMS_UNDERWATER;
+                property == Property.PULL_DROPPED_ITEMS_UNDERWATER ||
+                property == Property.VULNERABLE_TO_IMPALING;
     }
 
     @Override
@@ -113,6 +122,8 @@ public class SharkOriginType extends AbstractOriginType {
         if (event instanceof Event && ((Event) event).isCanceled()) return;
         if (event instanceof TickEvent.PlayerTickEvent) {
             onPlayerTick((TickEvent.PlayerTickEvent) event, origin);
+        } else if (event instanceof LivingHurtEvent) {
+            tryApplyImpalingDamage((LivingHurtEvent) event, origin);
         }
     }
 
@@ -128,8 +139,7 @@ public class SharkOriginType extends AbstractOriginType {
             Food consumedFood = event.getItem().getItem().getFood();
             if (consumedFood == null) return;
 
-            for (int index = 0; index < SEAFOOD_HEALING_AMP - 1; index ++)
-                player.getFoodStats().addStats(consumedFood.getHealing(), consumedFood.getSaturation());
+            player.getFoodStats().addStats((int) (consumedFood.getHealing() * (SEAFOOD_HEALING_AMP - 1)), consumedFood.getSaturation() * (SEAFOOD_HEALING_AMP - 1));
         }
     }
 
@@ -209,6 +219,24 @@ public class SharkOriginType extends AbstractOriginType {
                 if (modifiers.isEmpty()) tag.remove("AttributeModifiers");
             }
         }
+    }
+
+    protected void tryApplyImpalingDamage(LivingHurtEvent event, Origin origin) {
+        if (!origin.isServerSide()) return;
+        DamageSource damageSource = event.getSource();
+        Entity immediateSource = damageSource.getImmediateSource();
+        if (immediateSource instanceof LivingEntity) {
+            LivingEntity damager = (LivingEntity) immediateSource;
+            ItemStack damagerItem = damager.getHeldItemMainhand();
+            int impalingLevel = EnchantmentHelper.getEnchantmentLevel(Enchantments.IMPALING, damagerItem);
+            if (impalingLevel > 0) {
+                applyImpalingDamage(event, impalingLevel);
+            }
+        }
+    }
+
+    protected void applyImpalingDamage(LivingHurtEvent event, int impalingLevel) {
+        event.setAmount(event.getAmount() * impalingLevel * IMPALING_DAMAGE_LEVEL_AMP);
     }
 
 }

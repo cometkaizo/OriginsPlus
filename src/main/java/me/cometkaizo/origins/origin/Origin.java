@@ -57,7 +57,7 @@ public class Origin implements INBTSerializable<INBT> {
     private boolean isPhysicalClient;
     private boolean isRemoved;
 
-    private DataManager data = new DataManager();
+    private DataManager data;
     private final Map<OriginType, DataManager> typeSpecificData = new HashMap<>(1);
     private final Set<OriginType> seenTypes = new HashSet<>(1);
     private final AtomicBoolean shouldSync = new AtomicBoolean(false);
@@ -70,14 +70,17 @@ public class Origin implements INBTSerializable<INBT> {
         return originCap.isPresent() ? originCap.orElseThrow(AssertionError::new) : null;
     }
 
+    public static boolean hasProperty(Entity entity, Object property) {
+        Origin origin = getOrigin(entity);
+        return origin != null && origin.hasProperty(property);
+    }
+
     public Origin(OriginType type, PlayerEntity player) {
         setType(type);
         setPlayer(player);
 
         MinecraftForge.EVENT_BUS.register(this);
-        data.register(TIME_TRACKER, new TimeTracker());
-        if (isServerSide) data.registerSaved(HAS_CHOSEN_TYPE, false, new ResourceLocation(Main.MOD_ID, "has_chosen_type"));
-        if (!isServerSide) data.register(SHOULD_OPEN_ORIGIN_SCREEN, false);
+        data = newDefaultDataManager();
     }
 
     /**
@@ -88,25 +91,33 @@ public class Origin implements INBTSerializable<INBT> {
      */
     void transferDataFrom(Origin other) {
         this.isRemoved = other.isRemoved;
-        if (isRemoved) remove();
-        else MinecraftForge.EVENT_BUS.register(this);
         this.seenTypes.clear();
         this.seenTypes.addAll(other.seenTypes);
         this.typeSpecificData.clear();
         this.typeSpecificData.putAll(other.typeSpecificData);
-        this.data = other.data;
+        this.data = other.data == null ? newDefaultDataManager() : other.data;
         setType(other.type);
+        if (isRemoved) remove();
+        else MinecraftForge.EVENT_BUS.register(this);
 
         other.remove();
     }
 
+    protected DataManager newDefaultDataManager() {
+        DataManager data = new DataManager();
+        data.register(TIME_TRACKER, new TimeTracker());
+        if (isServerSide) data.registerSaved(HAS_CHOSEN_TYPE, false, new ResourceLocation(Main.MOD_ID, "has_chosen_type"));
+        if (!isServerSide) data.register(SHOULD_OPEN_ORIGIN_SCREEN, false);
+        return data;
+    }
+
     public void remove() {
-        Main.LOGGER.info("Removing origin with player {} and type {}...", player, type);
+        Main.LOGGER.info("Removing origin {} ...", this);
         MinecraftForge.EVENT_BUS.unregister(this);
         isRemoved = true;
         player = null;
         type = null;
-        data = null;
+        data = newDefaultDataManager();
         isServerSide = false;
         isPhysicalClient = false;
         seenTypes.clear();
@@ -117,40 +128,50 @@ public class Origin implements INBTSerializable<INBT> {
 
     @SubscribeEvent
     public void onEvent(Event event) {
-        if (isRemoved) {
-            Main.LOGGER.warn("Removed origin with player {} and type {} is still subscribed to events",
-                    player == null ? "null" : player.getName().getString(),
-                    type == null ? "null" : type.getName());
-            return;
-        }
-
-        if (isServerSide) {
-            if (event instanceof TickEvent.ServerTickEvent) {
-                onTick((TickEvent.ServerTickEvent) event);
+        try {
+            if (isRemoved) {
+                Main.LOGGER.warn("Removed origin with player {} and type {} is still subscribed to events",
+                        player == null ? "null" : player.getName().getString(),
+                        type == null ? "null" : type.getName());
+                return;
             }
-        } else {
-            if (event instanceof TickEvent.ClientTickEvent) {
-                onTick((TickEvent.ClientTickEvent) event);
-                if (getOrigin(player) != this || DistExecutor.safeCallWhenOn(Dist.CLIENT, () -> ClientUtils::getClientPlayer) != player) {
-                    remove();
+
+            if (isServerSide) {
+                if (event instanceof TickEvent.ServerTickEvent) {
+                    onTick((TickEvent.ServerTickEvent) event);
+                }
+            } else {
+                if (event instanceof TickEvent.ClientTickEvent) {
+                    onTick((TickEvent.ClientTickEvent) event);
+                    if (getOrigin(player) != this || DistExecutor.safeCallWhenOn(Dist.CLIENT, () -> ClientUtils::getClientPlayer) != player) {
+                        remove();
+                    }
                 }
             }
-        }
 
-        if (type != null) {
-            tryFirstActivate();
-            type.onEvent(event, this);
-            if (isAboutPlayer(event)) {
-                type.onPlayerSensitiveEvent(event, this);
+            if (type != null) {
+                tryFirstActivateCurrentType();
+                type.onEvent(event, this);
+                if (isAboutPlayer(event)) {
+                    type.onPlayerSensitiveEvent(event, this);
+                }
             }
+        } catch (Exception e) {
+            LOGGER.error("An exception occurred while running Origin#onEvent(Event) in origin {} ", this);
+            LOGGER.error("Caught exception: ", e);
         }
     }
 
     public void onEvent(Object event) {
         if (event instanceof Event) onEvent((Event) event);
         else if (type != null) {
-            tryFirstActivate();
-            type.onEvent(event, this);
+            try {
+                tryFirstActivateCurrentType();
+                type.onEvent(event, this);
+            } catch (Exception e) {
+                LOGGER.error("An exception occurred while running Origin#onEvent(Object) in origin {} ", this);
+                LOGGER.error("Caught exception: ", e);
+            }
         }
     }
 
@@ -172,7 +193,7 @@ public class Origin implements INBTSerializable<INBT> {
 
     public boolean hasProperty(Object property) {
         if (type != null) {
-            tryFirstActivate();
+            tryFirstActivateCurrentType();
             return type.hasMixinProperty(property, this);
         }
         return false;
@@ -180,18 +201,20 @@ public class Origin implements INBTSerializable<INBT> {
 
     public <T extends Property> List<T> getProperties(Class<T> propertyType) {
         if (type != null) {
-            tryFirstActivate();
+            tryFirstActivateCurrentType();
             return type.getProperties(propertyType);
         }
         return null;
     }
 
-    private void tryFirstActivate() {
-        if (type != null && !seenTypes.contains(type)) {
-            synchronized (seenTypes) {
-                if (type != null && !seenTypes.contains(type)) {
-                    type.onFirstActivate(this);
-                    seenTypes.add(type);
+    private void tryFirstActivateCurrentType() {
+        if (type != null) {
+            if (!seenTypes.contains(type)) {
+                synchronized (seenTypes) {
+                    if (type != null && !seenTypes.contains(type)) {
+                        type.onFirstActivate(this);
+                        seenTypes.add(type);
+                    }
                 }
             }
         }
@@ -199,36 +222,34 @@ public class Origin implements INBTSerializable<INBT> {
 
     public void performAction() {
         if (type != null) {
-            tryFirstActivate();
+            tryFirstActivateCurrentType();
             type.performAction(this);
         }
     }
 
     protected void syncIfNecessary() {
         if (shouldSync.get() && isServerSide && syncCooldown.decrementAndGet() <= 0) {
-            forceSynchronize();
+            trySynchronize();
             syncCooldown.set(SYNC_COOLDOWN);
         }
     }
 
-    public void forceSynchronize() {
-        if (isRemoved) {
-            LOGGER.info("Cannot synchronize removed origin");
-            return;
+    public void trySynchronize() {
+        if (!isServerSide) {
+            LOGGER.warn("Wrong side to synchronize origin {} : {}", player, type == null ? "null" : type.getName());
+        } else if (isRemoved) {
+            LOGGER.warn("Cannot synchronize removed origin {} : {}", player, type == null ? "null" : type.getName());
+        } else if (player == null) {
+            LOGGER.warn("No player to synchronize in origin {} : {}", null, type == null ? "null" : type.getName());
+        } else if (!player.isAlive()) {
+            LOGGER.warn("Cannot synchronize removed player in origin {} : {}", player, type == null ? "null" : type.getName());
+        } else {
+            LOGGER.info("Synchronizing for {} to be {} in origin {}...",
+                    player.getGameProfile().getName(),
+                    type == null ? "null" : type.getName(),
+                    this);
+            Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSynchronizeOrigin(player, type, getTypeData().serializeSynced()));
         }
-        if (player == null) {
-            LOGGER.info("No player to synchronize");
-            return;
-        }
-        if (!player.isAlive()) {
-            LOGGER.info("Cannot synchronize removed player");
-            return;
-        }
-        LOGGER.info("Synchronizing Origins for {} to be {} in {}...",
-                player.getGameProfile().getName(),
-                type == null ? "null" : type.getName(),
-                player.world.getDimensionKey().getLocation());
-        Packets.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new S2CSynchronizeOrigin(player, type));
     }
 
     public void setShouldSynchronize() {
@@ -240,9 +261,9 @@ public class Origin implements INBTSerializable<INBT> {
         syncCooldown.set(0);
     }
 
-    public void acceptSynchronization(PlayerEntity player, OriginType type) {
+    public void acceptSynchronization(PlayerEntity player, OriginType type, CompoundNBT typeData) {
         if (player == null) {
-            LOGGER.error("Invalid synchronization packet: no player");
+            LOGGER.error("Invalid synchronization packet: no player; {}, {}", type, typeData);
             return;
         } if (player instanceof ServerPlayerEntity) {
             LOGGER.error("Invalid synchronization packet: incorrect player type: {}", player);
@@ -253,16 +274,21 @@ public class Origin implements INBTSerializable<INBT> {
         } if (type == null) {
             LOGGER.error("Invalid synchronization packet: no type");
             return;
+        } else if (typeData == null) {
+            LOGGER.error("Invalid synchronization packet: no type data; {}, {}", player, type);
+            return;
         }
         setPlayer(player);
         setType(type);
-        LOGGER.info("Accepted synchronization packet, player: {}, type: {}", this.player, this.type);
+        getTypeData().deserializeSynced(typeData);
+        if (this.type != null) this.type.acceptSynchronization(this);
+        LOGGER.info("Accepted synchronization packet, player: {}, type: {}, type data: {}", this.player, this.type, typeData);
         Packets.CHANNEL.send(PacketDistributor.SERVER.noArg(), new C2SAcknowledgeSyncOrigin());
     }
 
 
     public CompoundNBT serializeNBT() {
-        if (isRemoved) throw new IllegalStateException("Should not serialize data for removed origin");
+        if (isRemoved) throw new IllegalStateException("Cannot serialize data for removed origin");
 
         CompoundNBT nbt = new CompoundNBT();
         nbt.putString("origin_type", String.valueOf(OriginTypes.getKey(type)));
@@ -287,11 +313,12 @@ public class Origin implements INBTSerializable<INBT> {
     }
 
     public void deserializeNBT(INBT nbt) {
+        if (!(nbt instanceof CompoundNBT)) throw new IllegalArgumentException("Illegal NBT: " + nbt);
         CompoundNBT compoundNBT = (CompoundNBT) nbt;
 
-        deserializeType(compoundNBT.getString("origin_type"));
-
         deserializePlayer(compoundNBT.getString("origin_player"));
+
+        deserializeType(compoundNBT.getString("origin_type"));
 
         deserializeData(compoundNBT.get("origin_data"));
         deserializeTypeSpecificData(compoundNBT.get("origin_type_specific_data"));
@@ -311,16 +338,18 @@ public class Origin implements INBTSerializable<INBT> {
     }
 
     private void deserializeData(INBT data) {
+        if (this.data == null) this.data = newDefaultDataManager();
         if (data != null) this.data.deserializeNBT(data);
         else LOGGER.warn("No data found");
     }
 
     private void deserializePlayer(String playerUUID) {
-        if ("".equals(playerUUID)) LOGGER.warn("No player UUID found");
-        else if (ServerLifecycleHooks.getCurrentServer().isDedicatedServer()) {
+        if (playerUUID == null || "".equals(playerUUID)) {
+            LOGGER.warn("No player UUID found");
+        } else if (ServerLifecycleHooks.getCurrentServer().isDedicatedServer()) {
             PlayerList playerList = ServerLifecycleHooks.getCurrentServer().getPlayerList();
 
-            ServerPlayerEntity player = playerList.getPlayerByUUID(UUID.fromString(playerUUID));
+            ServerPlayerEntity player = getPlayerByUUID(playerUUID, playerList);
             if (player != null) setPlayer(player);
             else LOGGER.error("Could not find player with UUID '{}'", playerUUID);
             LOGGER.info("All players: {}, player count: {}, online: {}", playerList.getPlayers(), playerList.getCurrentPlayerCount(), playerList.getOnlinePlayerNames());
@@ -330,13 +359,21 @@ public class Origin implements INBTSerializable<INBT> {
         }
     }
 
+    protected ServerPlayerEntity getPlayerByUUID(String playerUUID, PlayerList playerList) {
+        try {
+            return playerList.getPlayerByUUID(UUID.fromString(playerUUID));
+        } catch (IllegalArgumentException e) {
+            LOGGER.error("Invalid UUID", e);
+            return null;
+        }
+    }
+
     private void deserializeType(String typeNamespace) {
-        type = OriginTypes.of(typeNamespace);
+        OriginType type = OriginTypes.of(typeNamespace);
         if (type == null) {
             LOGGER.warn("Could not find origin type '{}'; defaulting to HUMAN", typeNamespace);
-            type = OriginTypes.HUMAN.get();
-        }
-        tryFirstActivate();
+            setType(OriginTypes.HUMAN.get());
+        } else setType(type);
     }
 
     public OriginType getType() {
@@ -394,12 +431,12 @@ public class Origin implements INBTSerializable<INBT> {
         if (this.type == type) return;
         if (this.type != null) this.type.onDeactivate(this);
         this.type = type;
-        tryFirstActivate();
-        if (type != null) this.type.onActivate(this);
+        tryFirstActivateCurrentType();
+        type.onActivate(this);
     }
 
     protected void setPlayer(PlayerEntity player) {
-        Objects.requireNonNull(player, "Player cannot be null");
+        if (player == null) LOGGER.warn("Player for origin {} was set to null", this);
         this.player = player;
         this.isServerSide = player instanceof ServerPlayerEntity;
         this.isPhysicalClient = false;
@@ -494,4 +531,24 @@ public class Origin implements INBTSerializable<INBT> {
         }
     }
 
+    @Override
+    public String toString() {
+        try {
+            return "Origin{" +
+                    "type=" + type +
+                    ", player=" + player +
+                    ", isServerSide=" + isServerSide +
+                    ", isPhysicalClient=" + isPhysicalClient +
+                    ", isRemoved=" + isRemoved +
+                    ", data=" + data +
+                    ", typeSpecificData=" + typeSpecificData +
+                    ", seenTypes=" + seenTypes +
+                    ", shouldSync=" + shouldSync +
+                    ", syncCooldown=" + syncCooldown +
+                    '}';
+        } catch (Exception e) {
+            LOGGER.error("Error in Origin#toString()");
+            return "No Origin String representation";
+        }
+    }
 }

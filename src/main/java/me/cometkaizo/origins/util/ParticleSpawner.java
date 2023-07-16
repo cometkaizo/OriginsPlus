@@ -12,13 +12,13 @@ import java.util.function.Supplier;
 public class ParticleSpawner {
     protected static final Random random = new Random();
 
-    private final Set<IParticleData> particleTypes = new HashSet<>(1);
-    private ServerWorld world;
-    private Vector3d position;
-    private Supplier<Vector3d> delta;
-    private Supplier<Vector3d> direction;
-    private Supplier<Double> speed;
-    private Supplier<Integer> count;
+    protected final Set<IParticleData> particleTypes = new HashSet<>(1);
+    protected ServerWorld world;
+    protected Vector3d position;
+    protected Supplier<Vector3d> delta;
+    protected Supplier<Vector3d> direction;
+    protected Supplier<Double> speed;
+    protected Supplier<Integer> count;
 
     protected static double randomDouble(double origin, double bound) {
         return random.nextDouble() * (bound - origin) + origin;

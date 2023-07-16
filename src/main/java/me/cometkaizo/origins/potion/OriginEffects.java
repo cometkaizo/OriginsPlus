@@ -26,6 +26,9 @@ public class OriginEffects {
             () -> new CustomEffect(EffectType.BENEFICIAL, 9643043)
                     .addAttributesModifier(Attributes.ATTACK_DAMAGE, "39e8c1fb-b6ba-4c8f-9a22-0d6e24e4e7c2", 1, AttributeModifier.Operation.MULTIPLY_TOTAL)
     );
+    public static final RegistryObject<Effect> CAMOUFLAGE = EFFECTS.register("camouflage",
+            () -> new CustomEffect(EffectType.BENEFICIAL, 3381504)
+    );
 
     public static void register(IEventBus bus) {
         EFFECTS.register(bus);

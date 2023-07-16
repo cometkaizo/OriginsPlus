@@ -5,6 +5,7 @@ import me.cometkaizo.origins.util.CollUtils;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.registries.ForgeRegistryEntry;
 
 import java.util.ArrayList;
@@ -30,12 +31,12 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
     protected AbstractOriginType(String name, ItemStack icon, Function<AbstractOriginType, Origin.Description> descriptionFunction, Property... properties) {
         this.name = name;
         this.icon = icon;
-        this.descriptionFunction = descriptionFunction;
+        this.descriptionFunction = descriptionFunction == null ? Origin.Description::new : descriptionFunction;
         this.properties = CollUtils.setOf(properties);
     }
     protected AbstractOriginType(ItemStack icon, Function<AbstractOriginType, Origin.Description> descriptionFunction, Property... properties) {
         this.icon = icon;
-        this.descriptionFunction = descriptionFunction;
+        this.descriptionFunction = descriptionFunction == null ? Origin.Description::new : descriptionFunction;
         this.name = getClass().getSimpleName()
                 .replaceAll("(?<=.)" + OriginType.class.getSimpleName() + "$", "")
                 .replaceAll("(.)([A-Z])", "\\1 \\2");
@@ -45,6 +46,11 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
     @Override
     public void init() {
         this.description = descriptionFunction.apply(this);
+    }
+
+    @Override
+    public void acceptSynchronization(Origin origin) {
+
     }
 
     @Override
@@ -90,6 +96,10 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
                 ((SlimicianOriginType) o.getType()).onRenderPlayer(renderEvent, o);
             }
         }
+    }
+
+    protected boolean isCanceled(Object event) {
+        return event instanceof Event && ((Event)event).isCanceled();
     }
 
     @Override

@@ -10,15 +10,18 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientOrigin {
+    @SuppressWarnings("ConstantConditions")
     public static boolean isPhysicalClient(PlayerEntity player) {
         return player != null &&
+                Minecraft.getInstance() != null &&
                 Minecraft.getInstance().player != null &&
-                player.getGameProfile().equals(Minecraft.getInstance().player.getGameProfile());
+                player.getGameProfile() != null &&
+                player == Minecraft.getInstance().player;
     }
 
     public static void sendRemovalOriginPacket() {
         Packets.sendToServer(new C2SRemoveOrigin());
-        Main.LOGGER.info("Removal packet sent");
+        Main.LOGGER.info("Sent Origin removal packet");
     }
 
 }

@@ -51,6 +51,7 @@ public final class PlayerSpawnMixin {
                                              ServerWorld serverworld1,
                                              PlayerInteractionManager playerinteractionmanager,
                                              ServerPlayerEntity newPlayer) {
+            if (endConquered) return;
             Origin origin = Origin.getOrigin(newPlayer);
             if (origin != null && origin.hasProperty(PhoenixOriginType.Property.RESPAWN_AT_DEATH)) {
                 tryRespawnAtDeath(oldPlayer, newPlayer);
@@ -60,8 +61,6 @@ public final class PlayerSpawnMixin {
         private static void tryRespawnAtDeath(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer) {
             if (shouldNotRespawn(oldPlayer)) return;
             Vector3d deathPos = oldPlayer.getPositionVec();
-            double x = deathPos.x, y = deathPos.y, z = deathPos.z;
-            float yaw = oldPlayer.rotationYaw, pitch = oldPlayer.rotationPitch;
             ServerWorld deathWorld = oldPlayer.getServerWorld();
 
             Origin origin = Origin.getOrigin(newPlayer);
@@ -69,56 +68,17 @@ public final class PlayerSpawnMixin {
                 origin.getTypeData().set(PhoenixOriginType.LAST_DEATH_DIMENSION, deathWorld);
                 origin.getTypeData().set(PhoenixOriginType.LAST_DEATH_POS, deathPos);
             }
-
-/*
-            deathWorld.getChunkProvider().registerTicket(TicketType.POST_TELEPORT, new ChunkPos(new BlockPos(deathPos)), 1, newPlayer.getEntityId());
-
-            //newPlayer.func_184210_p();
-            newPlayer.revive();
-            try {
-                Field entityBlockPosition = Entity.class.getDeclaredField("entityBlockPosition");
-                entityBlockPosition.setAccessible(true);
-                Main.LOGGER.info("entity block position for {}: {}", newPlayer, entityBlockPosition.get(newPlayer));
-                entityBlockPosition.set(newPlayer, new BlockPos(deathPos));
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
-            if (newPlayer.isSleeping())
-                newPlayer.stopSleepInBed(true, true);
-            newPlayer.changeDimension(deathWorld);
-            newPlayer.teleport(deathWorld, x, y, z, yaw, pitch);
-            newPlayer.teleportKeepLoaded(x, y, z);
-            newPlayer.setRotationYawHead(yaw);*/
-            //newPlayer.func_71016_p();
-
-            /*
-
-            if (deathWorld == newPlayer.deathWorld) {
-                newPlayer.connection.setPlayerLocation(deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
-            } else {
-                //newPlayer.deathWorld.getChunk(newPlayer.chunkCoordX, newPlayer.chunkCoordZ).removeEntity(newPlayer);
-                deathWorld.addEntityIfNotDuplicate(newPlayer);
-                newPlayer.teleport(deathWorld, deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
-                newPlayer.teleportKeepLoaded(deathPos.x, deathPos.y, deathPos.z);
-                newPlayer.revive();
-            }*/
-
-            /*
-//            oldPlayer.getServerWorld().getChunkProvider().registerTicket(TicketType.POST_TELEPORT, new ChunkPos(oldPlayer.getPosition()), 1, newPlayer.getEntityId());
-            newPlayer.teleport(oldPlayer.getServerWorld(), deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);
-            newPlayer.changeDimension(oldPlayer.getServerWorld());
-            newPlayer.setLocationAndAngles(deathPos.x, deathPos.y, deathPos.z, oldPlayer.rotationYaw, oldPlayer.rotationPitch);*/
         }
 
         private static boolean shouldNotRespawn(ServerPlayerEntity oldPlayer) {
-            return isAboveVoid(oldPlayer) && World.THE_END.equals(oldPlayer.world.getDimensionKey());
+            return isAboveVoid(oldPlayer);
         }
 
         private static boolean isAboveVoid(PlayerEntity player) {
             World world = player.world;
             for (int searchOffset = 0; ; searchOffset++) {
                 BlockPos searchPos = player.getPosition().down(searchOffset);
-                if (searchPos.getY() < VersionConstants.LOW_BUILD_LIMIT) return true;
+                if (searchPos.getY() < VersionConstants.MIN_BUILD_LIMIT) return true;
 
                 BlockState searchBlock = world.getBlockState(searchPos);
                 if (searchBlock.isSolid()) return false;

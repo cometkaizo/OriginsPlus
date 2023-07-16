@@ -20,7 +20,13 @@ public class CapabilityEvents {
         if (event.getObject() instanceof PlayerEntity) {
             PlayerEntity player = (PlayerEntity) event.getObject();
             if (!player.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).isPresent()) {
-                event.addCapability(new ResourceLocation(Main.MOD_ID, "player_origin"), new OriginCapProvider(player));
+                OriginCapProvider cap = new OriginCapProvider(player);
+                cap.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(o -> {
+                    if (o.getPlayer() == null) {
+                        o.setPlayer(player);
+                    }
+                });
+                event.addCapability(new ResourceLocation(Main.MOD_ID, "player_origin"), cap);
             }
         }
     }
@@ -28,16 +34,16 @@ public class CapabilityEvents {
     @SubscribeEvent
     public static void onPlayerClone(PlayerEvent.Clone event) {
         event.getOriginal().revive();
-        if (event.isWasDeath()) {
-            event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(oldOrigin ->
-                    event.getPlayer().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(newOrigin -> {
-                        newOrigin.transferDataFrom(oldOrigin);
-                        newOrigin.forceSynchronize();
-                        newOrigin.setShouldSynchronize();
-                        Main.LOGGER.info("Updated new origin to be {}, {}", event.getPlayer(), oldOrigin.getType());
-                    })
-            );
-        }
+
+        event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(oldOrigin ->
+                event.getPlayer().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(newOrigin -> {
+                    newOrigin.transferDataFrom(oldOrigin);
+                    newOrigin.trySynchronize();
+                    newOrigin.setShouldSynchronize();
+                    Main.LOGGER.info("Updated new origin to be {}, {}", event.getPlayer(), oldOrigin.getType());
+                })
+        );
+
         event.getOriginal().getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(Origin::remove);
         event.getOriginal().remove(false);
     }
@@ -45,27 +51,14 @@ public class CapabilityEvents {
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getPlayer() instanceof ServerPlayerEntity) {
-            ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
-            Objects.requireNonNull(player.getServer()).runAsync(() -> {
-                Origin origin = Origin.getOrigin(player);
-                if (origin != null) {
-                    origin.forceSynchronize();
-                    origin.setShouldSynchronize();
-
-                    if (!origin.hasChosenType()) origin.setShouldOpenOriginScreen();
-
-                    // TODO: 2023-06-15 move this to C2SChooseOrigin in release and change to true
-                    origin.setHasChosenType(false);
-                }
-            });
+            synchronizeAndChooseOrigin((ServerPlayerEntity) event.getPlayer());
         }
     }
 
     @SubscribeEvent
     public static void playerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getPlayer() instanceof ServerPlayerEntity) {
-            ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
-            synchronizeOrigin(player);
+            synchronizeAndChooseOrigin((ServerPlayerEntity) event.getPlayer());
         }
     }
 
@@ -73,8 +66,20 @@ public class CapabilityEvents {
         Objects.requireNonNull(player.getServer()).runAsync(() -> {
             Origin origin = Origin.getOrigin(player);
             if (origin != null) {
-                origin.forceSynchronize();
+                origin.trySynchronize();
                 origin.setShouldSynchronize();
+            }
+        });
+    }
+
+    private static void synchronizeAndChooseOrigin(ServerPlayerEntity player) {
+        Objects.requireNonNull(player.getServer()).runAsync(() -> {
+            Origin origin = Origin.getOrigin(player);
+            if (origin != null) {
+                origin.trySynchronize();
+                origin.setShouldSynchronize();
+
+                if (!origin.hasChosenType()) origin.setShouldOpenOriginScreen();
             }
         });
     }
@@ -82,8 +87,7 @@ public class CapabilityEvents {
     @SubscribeEvent
     public static void playerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getPlayer() instanceof ServerPlayerEntity) {
-            ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
-            synchronizeOrigin(player);
+            synchronizeOrigin((ServerPlayerEntity) event.getPlayer());
         }
     }
 
@@ -91,15 +95,16 @@ public class CapabilityEvents {
     @SubscribeEvent
     public static void onStartTracking(PlayerEvent.StartTracking event) {
         if (event.getTarget() instanceof PlayerEntity &&
-                event.getPlayer() instanceof ServerPlayerEntity &&
-                !event.getPlayer().world.isRemote) {
+                event.getPlayer() instanceof ServerPlayerEntity/* &&
+                !event.getPlayer().world.isRemote*/) {
             ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
             PlayerEntity target = (PlayerEntity) event.getTarget();
 
             Objects.requireNonNull(player.getServer()).runAsync(() -> {
                 Origin origin = Origin.getOrigin(target);
                 if (origin != null) {
-                    origin.forceSynchronize();
+                    origin.trySynchronize();
+                    origin.setShouldSynchronize();
                 }
             });
         }

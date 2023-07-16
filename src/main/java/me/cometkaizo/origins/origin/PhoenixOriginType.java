@@ -11,6 +11,7 @@ import net.minecraft.item.Items;
 import net.minecraft.particles.ParticleTypes;
 import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
@@ -35,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import java.awt.*;
 import java.util.List;
 
+import static me.cometkaizo.origins.origin.ElytrianOriginType.setSwimming;
 import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 @Mod.EventBusSubscriber(modid = Main.MOD_ID)
@@ -53,8 +55,8 @@ public class PhoenixOriginType extends AbstractOriginType {
     public static final double BOOST_AMPLIFIER = 0.55;
     public static final double BOOST_OLD_MOVEMENT_REDUCTION = 0.4;
     public static final float BOOST_EXHAUSTION = 0.08F;
-    public static final float FIRE_TICK_FLY_SPEED_AMP = 0.022F;
     public static final float XP_BONUS_AMP = 0.015F;
+    private static final float FIRE_BONUS_AMP = 1.25F;
     public static final ParticleSpawner FIRE_POWER_PARTICLE_SPAWNER = new ParticleSpawner()
             .withParticles(ParticleTypes.SMOKE, ParticleTypes.FLAME)
             .withRandomCount(10, 20)
@@ -117,7 +119,7 @@ public class PhoenixOriginType extends AbstractOriginType {
 
     @Override
     public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.RESPAWN_AT_DEATH || property == ElytrianOriginType.Property.PERMANENT_WINGS;
+        return /*property == Property.RESPAWN_AT_DEATH || */property == ElytrianOriginType.Property.WINGS;
     }
 
     @Override
@@ -221,7 +223,8 @@ public class PhoenixOriginType extends AbstractOriginType {
     public static void boostUp(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         float flapAmount = (-player.rotationPitch + 90) / 180;
-        double yMotion = FLAP_AMPLIFIER * flapAmount;
+        float fireBonus = player.getFireTimer() > 0 ? FIRE_BONUS_AMP : 1;
+        double yMotion = FLAP_AMPLIFIER * flapAmount * fireBonus;
 
         player.setMotion(player.getMotion().add(0, yMotion, 0));
         SoundUtils.playSound(player, SoundEvents.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4F, 1);
@@ -233,13 +236,13 @@ public class PhoenixOriginType extends AbstractOriginType {
     public static void boostForward(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         Vector3d boostAmount = player.getLookVec();
-        float fireSpeedBoost = Math.max(origin.getPlayer().getFireTimer(), 0) * FIRE_TICK_FLY_SPEED_AMP + 1;
+        float fireBonus = player.getFireTimer() > 0 ? FIRE_BONUS_AMP : 1;
         float xpBonus = Math.max(1F, player.experienceLevel * XP_BONUS_AMP);
 
         Vector3d boost = boostAmount
                 .scale(BOOST_AMPLIFIER)
                 .scale(xpBonus)
-                .scale(fireSpeedBoost);
+                .scale(fireBonus);
 
         Vector3d oldMotion = player.getMotion().scale(BOOST_OLD_MOVEMENT_REDUCTION);
         player.setMotion(oldMotion.add(boost));
@@ -255,6 +258,10 @@ public class PhoenixOriginType extends AbstractOriginType {
         if (!origin.getPlayer().equals(event.player)) return;
         PlayerEntity player = origin.getPlayer();
         TimeTracker cooldownTracker = origin.getTimeTracker();
+
+        if (player.isElytraFlying() && player.areEyesInFluid(FluidTags.WATER)) {
+            setSwimming(player);
+        }
 
         if (player.isInWaterOrBubbleColumn()) {
             if (!cooldownTracker.hasTimer(Cooldown.WATER_DAMAGE)) {

@@ -2,14 +2,12 @@ package me.cometkaizo.origins.mixin;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.matrix.MatrixStack;
+import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.animation.SimpleEaseInOut;
 import me.cometkaizo.origins.animation.SimpleEaseOut;
 import me.cometkaizo.origins.animation.SimpleTransition;
 import me.cometkaizo.origins.animation.Transition;
-import me.cometkaizo.origins.origin.ElytrianOriginType;
-import me.cometkaizo.origins.origin.Origin;
-import me.cometkaizo.origins.origin.OriginTypes;
-import me.cometkaizo.origins.origin.PhoenixOriginType;
+import me.cometkaizo.origins.origin.*;
 import net.minecraft.client.entity.player.AbstractClientPlayerEntity;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
@@ -20,11 +18,16 @@ import net.minecraft.client.renderer.entity.model.ElytraModel;
 import net.minecraft.client.renderer.entity.model.PlayerModel;
 import net.minecraft.client.renderer.model.ModelRenderer;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.dispenser.IBlockSource;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
+import net.minecraft.inventory.EquipmentSlotType;
+import net.minecraft.item.*;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -37,11 +40,63 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
+
+import java.util.List;
 
 import static me.cometkaizo.origins.origin.ElytrianOriginType.Cooldown.FORWARD_BOOST;
 import static me.cometkaizo.origins.origin.ElytrianOriginType.Cooldown.UP_BOOST;
+import static me.cometkaizo.origins.origin.ElytrianOriginType.canWearElytra;
 
 public final class ElytraMixin {
+
+    @Mixin(ArmorItem.class)
+    public static abstract class MixedArmorItem extends Item {
+        public MixedArmorItem(Properties properties) {
+            super(properties);
+        }
+
+        @Inject(method = "func_226626_a_",
+                at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/MobEntity;getSlotForItemStack(Lnet/minecraft/item/ItemStack;)Lnet/minecraft/inventory/EquipmentSlotType;"),
+                locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true)
+        private static void checkCanDispenseElytra(IBlockSource blockSource,
+                                                   ItemStack stack,
+                                                   CallbackInfoReturnable<Boolean> info,
+                                                   BlockPos blockPos,
+                                                   List<LivingEntity> list,
+                                                   LivingEntity target) {
+            if (stack.getItem() == Items.ELYTRA) {
+                Origin origin = Origin.getOrigin(target);
+                if (!canWearElytra(origin)) {
+                    info.setReturnValue(false);
+                }
+            }
+        }
+    }
+
+    @Mixin(ElytraItem.class)
+    public static abstract class MixedElytraItem extends Item {
+
+        public MixedElytraItem(Properties properties) {
+            super(properties);
+        }
+
+        @Inject(method = "onItemRightClick", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/PlayerEntity;setItemStackToSlot(Lnet/minecraft/inventory/EquipmentSlotType;Lnet/minecraft/item/ItemStack;)V"), cancellable = true)
+        protected void checkCanWearElytra(World world, PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult<ItemStack>> info) {
+            Origin origin = Origin.getOrigin(player);
+            if (!canWearElytra(origin)) {
+                info.setReturnValue(ActionResult.resultFail(player.getHeldItem(hand)));
+            }
+        }
+
+        @Override
+        public boolean canEquip(ItemStack stack, EquipmentSlotType armorType, Entity entity) {
+            Origin origin = Origin.getOrigin(entity);
+            if (!canWearElytra(origin))
+                return armorType != EquipmentSlotType.CHEST;
+            return super.canEquip(stack, armorType, entity);
+        }
+    }
 
     @OnlyIn(Dist.CLIENT)
     @Mixin(PlayerModel.class)
@@ -59,7 +114,7 @@ public final class ElytraMixin {
                 method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V")
         protected void slowLimbMovementWhileFlying(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS) && entity.isElytraFlying()) {
+            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS) && entity.isElytraFlying()) {
                 bipedLeftLeg.rotateAngleX *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleY *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleZ *= FLIGHT_MOVEMENT_REDUCTION;
@@ -102,7 +157,7 @@ public final class ElytraMixin {
         protected void setRotationAngles(LivingEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null &&
-                    origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS)) {
+                    origin.hasProperty(ElytrianOriginType.Property.WINGS)) {
                 int upBoostTime;
                 if (origin.getType() == OriginTypes.ELYTRIAN.get())
                     upBoostTime = origin.getTimeTracker().getTimerLeft(ElytrianOriginType.Cooldown.UP_BOOST);
@@ -146,19 +201,36 @@ public final class ElytraMixin {
 
         @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true, remap = false)
         protected void shouldRender(ItemStack stack, LivingEntity entity, CallbackInfoReturnable<Boolean> info) {
-            if (entity.isInvisible()) return;
+            boolean invisible = entity.isInvisible();
+            boolean hasWings = Origin.hasProperty(entity, ElytrianOriginType.Property.WINGS);
+            Main.LOGGER.debug("------- should render elytra layer? {} : {} : {} : {}", entity, Origin.getOrigin(entity), invisible, hasWings);
+            if (invisible) return;
 
-            Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS))
+            if (hasWings) {
+                Main.LOGGER.debug("returning true because {} is not invisible and has wings", Origin.getOrigin(entity));
                 info.setReturnValue(true);
+            }
         }
     }
 
     @Mixin(PlayerEntity.class)
     public static abstract class MixedPlayerEntity extends LivingEntity {
 
+        @Shadow public abstract boolean addItemStackToInventory(ItemStack p_191521_1_);
+
         protected MixedPlayerEntity(EntityType<? extends LivingEntity> type, World worldIn) {
             super(type, worldIn);
+        }
+
+        @Inject(method = "setItemStackToSlot", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/PlayerEntity;playEquipSound(Lnet/minecraft/item/ItemStack;)V", ordinal = 2), cancellable = true)
+        protected void checkCanWearElytra(EquipmentSlotType slotIn, ItemStack stack, CallbackInfo info) {
+            if (stack.getItem() == Items.ELYTRA) {
+                Origin origin = Origin.getOrigin(this);
+                if (!canWearElytra(origin)) {
+                    addItemStackToInventory(stack);
+                    info.cancel();
+                }
+            }
         }
 
         @Redirect(at = @At(value = "INVOKE",
@@ -168,7 +240,7 @@ public final class ElytraMixin {
             if (instance.canElytraFly(livingEntity)) return true;
 
             Origin origin = Origin.getOrigin(livingEntity);
-            return origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS);
+            return origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS);
         }
     }
 
@@ -193,7 +265,7 @@ public final class ElytraMixin {
             if (instance.elytraFlightTick(livingEntity, flightTicks)) return true;
 
             Origin origin = Origin.getOrigin(livingEntity);
-            return origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS);
+            return origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS);
         }
     }
 
@@ -232,7 +304,7 @@ public final class ElytraMixin {
                                           float headPitch,
                                           CallbackInfo info) {
             Origin origin = Origin.getOrigin(clientPlayer);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.PERMANENT_WINGS))
+            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS))
                 info.cancel();
         }
     }

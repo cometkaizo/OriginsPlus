@@ -282,8 +282,6 @@ public class ClientSlimicianOriginType {
 
         int shrinkCount = getShrinkCount(origin);
         float sizeFactor = (float) Math.pow(SIZE_SHRINK_FACTOR, shrinkCount);
-        //Main.LOGGER.info("prt: {}, origin: {}, stack: {}, shrink count: {}, factor: {}",
-        //        event.getPartialRenderTick(), origin, stack, shrinkCount, sizeFactor);
 
         stack.scale(sizeFactor, sizeFactor, sizeFactor);
         origin.getTypeData().set(PREV_RENDER_MATRIX_STACK, stack);
