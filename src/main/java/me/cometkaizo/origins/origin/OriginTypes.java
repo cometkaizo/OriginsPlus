@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 public final class OriginTypes {
 
     public static final DeferredRegister<OriginType> ORIGINS = DeferredRegister.create(OriginType.class, Main.MOD_ID);
-    public static final Supplier<IForgeRegistry<OriginType>> ORIGINS_REGISTRY = OriginTypes.ORIGINS.makeRegistry("origins", RegistryBuilder::new);
+    public static final Supplier<IForgeRegistry<OriginType>> ORIGINS_REGISTRY = ORIGINS.makeRegistry("origins", RegistryBuilder::new);
 
     public static final RegistryObject<OriginType> HUMAN = ORIGINS.register("human_origin", HumanOriginType::new);
     public static final RegistryObject<ElytrianOriginType> ELYTRIAN = ORIGINS.register("elytrian_origin", ElytrianOriginType::new);
@@ -30,6 +30,7 @@ public final class OriginTypes {
     public static final RegistryObject<ArachnidOriginType> ARACHNID = ORIGINS.register("arachnid_origin", ArachnidOriginType::new);
     public static final RegistryObject<SlimicianOriginType> SLIMICIAN = ORIGINS.register("slimician_origin", SlimicianOriginType::new);
     public static final RegistryObject<FoxOriginType> FOX = ORIGINS.register("fox_origin", FoxOriginType::new);
+    public static final RegistryObject<PhantomOriginType> PHANTOM = ORIGINS.register("phantom_origin", PhantomOriginType::new);
 
 
     @Nullable

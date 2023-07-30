@@ -44,12 +44,12 @@ public class ArachnidOriginType extends AbstractOriginType {
     public static final int AOE_POISON_RANGE_SQ = AOE_POISON_RANGE * AOE_POISON_RANGE;
     public static final float BANE_OF_ARTHROPODS_DAMAGE_LEVEL_AMP = 1.5F;
 
-    public static final SpeciesProperty SPIDER_SPECIES = new SpeciesProperty.Builder()
-            .setMobSpecies(EntityType.SPIDER)
+    public static final SpeciesProperty SPIDER_SPECIES = SpeciesProperty.Builder
+            .withMobSpecies(EntityType.SPIDER)
             .setRallyRadius(ARACHNID_RALLY_RANGE).build();
 
-    public static final SpeciesProperty CAVE_SPIDER_SPECIES = new SpeciesProperty.Builder()
-            .setMobSpecies(EntityType.CAVE_SPIDER)
+    public static final SpeciesProperty CAVE_SPIDER_SPECIES = SpeciesProperty.Builder
+            .withMobSpecies(EntityType.CAVE_SPIDER)
             .setRallyRadius(ARACHNID_RALLY_RANGE).build();
 
 
@@ -91,32 +91,32 @@ public class ArachnidOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return super.hasMixinProperty(property, origin) || property == Property.NO_COBWEB_SLOWDOWN;
+    public boolean hasLabel(Object label, Origin origin) {
+        return super.hasLabel(label, origin) || label == Property.NO_COBWEB_SLOWDOWN;
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
-        super.onFirstActivate(origin);
+    public void init(Origin origin) {
+        super.init(origin);
 
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onFirstActivate(origin));
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, Attributes.MAX_HEALTH, MAX_HEALTH);
         player.removePotionEffect(Effects.POISON);
-        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onActivate(origin));
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.activate(origin));
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, Attributes.MAX_HEALTH, Attributes.MAX_HEALTH.getDefaultValue());
-        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.onDeactivate(origin));
+        unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientArachnidOriginType.deactivate(origin));
     }
 
     @Override

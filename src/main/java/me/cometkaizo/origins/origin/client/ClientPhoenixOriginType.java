@@ -1,6 +1,5 @@
 package me.cometkaizo.origins.origin.client;
 
-import me.cometkaizo.origins.network.C2SElytrianAction;
 import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.PhoenixOriginType;
@@ -14,6 +13,8 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 
 import static me.cometkaizo.origins.origin.PhoenixOriginType.boostForward;
 import static me.cometkaizo.origins.origin.PhoenixOriginType.boostUp;
+import static me.cometkaizo.origins.origin.client.ClientElytrianOriginType.forwardBoostPacket;
+import static me.cometkaizo.origins.origin.client.ClientElytrianOriginType.upBoostPacket;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientPhoenixOriginType {
@@ -52,7 +53,7 @@ public class ClientPhoenixOriginType {
 
         if (!cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.UP_BOOST) && !cooldownTracker.hasTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST)) {
             boostForward(origin);
-            Packets.sendToServer(C2SElytrianAction.forwardBoost());
+            Packets.sendToServer(forwardBoostPacket());
         }
     }
 
@@ -80,7 +81,7 @@ public class ClientPhoenixOriginType {
         if (timeTracker.hasTimer(PhoenixOriginType.Cooldown.FORWARD_BOOST)) return;
 
         boostUp(origin);
-        Packets.sendToServer(C2SElytrianAction.upBoost());
+        Packets.sendToServer(upBoostPacket());
     }
 
 

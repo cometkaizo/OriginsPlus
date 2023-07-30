@@ -1,7 +1,8 @@
 package me.cometkaizo.origins.origin.client;
 
-import me.cometkaizo.origins.network.C2SElytrianAction;
+import me.cometkaizo.origins.network.C2SEnumAction;
 import me.cometkaizo.origins.network.Packets;
+import me.cometkaizo.origins.origin.ElytrianOriginType;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
@@ -76,8 +77,15 @@ public class ClientElytrianOriginType {
 
         if (player.movementInput.jump && canNormalBoost(timeTracker)) {
             boostUp(origin);
-            Packets.sendToServer(C2SElytrianAction.upBoost());
+            Packets.sendToServer(upBoostPacket());
         }
+    }
+
+    public static C2SEnumAction upBoostPacket() {
+        return new C2SEnumAction(ElytrianOriginType.Action.UP_BOOST);
+    }
+    public static C2SEnumAction forwardBoostPacket() {
+        return new C2SEnumAction(ElytrianOriginType.Action.FORWARD_BOOST);
     }
 
     private static void updateBarOverlay(TimeTracker timeTracker) {
@@ -97,7 +105,7 @@ public class ClientElytrianOriginType {
 
         if (canNormalBoost(timeTracker)) {
             boostForward(origin);
-            Packets.sendToServer(C2SElytrianAction.forwardBoost());
+            Packets.sendToServer(forwardBoostPacket());
         }
     }
 

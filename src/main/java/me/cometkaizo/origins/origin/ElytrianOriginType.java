@@ -67,8 +67,8 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.WINGS;
+    public boolean hasLabel(Object label, Origin origin) {
+        return label == Property.WINGS;
     }
 
     public enum Property {
@@ -99,7 +99,7 @@ public class ElytrianOriginType extends AbstractOriginType {
     public static boolean canWearElytra(Origin origin) {
         return origin == null ||
                 origin.getType() instanceof HumanOriginType ||
-                origin.hasProperty(ElytrianOriginType.Property.WINGS);
+                origin.hasLabel(ElytrianOriginType.Property.WINGS);
     }
 
     protected int getWeaknessAmplifier(int armorValue) {
@@ -284,20 +284,20 @@ public class ElytrianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
+    public void init(Origin origin) {
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onFirstActivate(origin));
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         updateFlightWeakness(origin.getPlayer(), getWeaknessAmplifier((int) getArmorValue(origin.getPlayer())));
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onActivate(origin));
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_STRENGTH.get());
         origin.getPlayer().removePotionEffect(OriginEffects.FLIGHT_WEAKNESS.get());
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientElytrianOriginType.onDeactivate(origin));

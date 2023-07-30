@@ -30,7 +30,7 @@ public final class FoodMixin {
             Origin origin = Origin.getOrigin(player);
             if (origin != null) {
                 ItemStack itemStack = player.getHeldItem(hand);
-                if (origin.hasProperty(IGNORE_HUNGER_FOR_SWEET_BERRIES) && itemStack.getItem() == Items.SWEET_BERRIES) {
+                if (origin.hasLabel(IGNORE_HUNGER_FOR_SWEET_BERRIES) && itemStack.getItem() == Items.SWEET_BERRIES) {
                     player.setActiveHand(hand);
                     info.setReturnValue(ActionResult.resultConsume(itemStack));
                 }

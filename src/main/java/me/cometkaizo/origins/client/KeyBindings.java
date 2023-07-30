@@ -7,6 +7,7 @@ import me.cometkaizo.origins.origin.Origin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.gui.screen.ChatScreen;
+import net.minecraft.client.gui.screen.EditSignScreen;
 import net.minecraft.client.gui.screen.inventory.ContainerScreen;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.client.util.InputMappings;
@@ -56,8 +57,9 @@ public final class KeyBindings {
 
         boolean chatOpen = minecraft.currentScreen instanceof ChatScreen;
         boolean containerOpen = minecraft.currentScreen instanceof ContainerScreen<?>;
+        boolean signOpen = minecraft.currentScreen instanceof EditSignScreen;
 
-        return !chatOpen && !containerOpen;
+        return !chatOpen && !containerOpen && !signOpen;
     }
 
     private KeyBindings() {

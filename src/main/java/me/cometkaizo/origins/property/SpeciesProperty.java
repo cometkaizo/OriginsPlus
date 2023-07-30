@@ -126,9 +126,16 @@ public class SpeciesProperty extends EventInterceptProperty {
         public Builder(Species species) {
             this.species = species;
         }
+        protected Builder() {}
 
-        public Builder() {
-
+        public static Builder withSpecies(Species species) {
+            return new Builder(species);
+        }
+        public static Builder withAngerableSpecies(EntityType<? extends IAngerable> entityType) {
+            return new Builder().setAngerableSpecies(entityType);
+        }
+        public static Builder withMobSpecies(EntityType<? extends MobEntity> entityType) {
+            return new Builder().setMobSpecies(entityType);
         }
 
         public Builder setName(String name) {

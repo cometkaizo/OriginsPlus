@@ -48,20 +48,20 @@ public class S2CSynchronizeOrigin {
         supplier.get().enqueueWork(() -> {
             World world = DistExecutor.safeCallWhenOn(Dist.CLIENT, () -> ClientUtils::getClientLevel);
             if (world == null) {
-                Main.LOGGER.info("No world, sending removal packet");
+                Main.LOGGER.info("No world; sending removal packet");
                 DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
                 return;
             }
 
             Entity entity = world.getEntityByID(playerId);
             if (entity == null) {
-                Main.LOGGER.error("No entity with id {}; sending removal packet", playerId);
-                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                Main.LOGGER.error("No entity with id {}", playerId);
+                sendRemovalPacket(null);
                 return;
             }
             if (!(entity instanceof PlayerEntity)) {
-                Main.LOGGER.info("Entity {} is not player; sending removal packet", entity);
-                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                Main.LOGGER.info("Entity {} is not player", entity);
+                sendRemovalPacket(entity);
                 return;
             }
             PlayerEntity player = (PlayerEntity) entity;
@@ -72,11 +72,16 @@ public class S2CSynchronizeOrigin {
             if (origin != null) {
                 origin.acceptSynchronization(player, type, typeData);
             } else {
-                Main.LOGGER.info("No origin, sending removal packet");
-                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
+                Main.LOGGER.info("No origin");
+                sendRemovalPacket(entity);
             }
         });
         return true;
+    }
+
+    private static void sendRemovalPacket(Entity entity) {
+        if (entity != null && entity == DistExecutor.safeCallWhenOn(Dist.CLIENT, () -> ClientUtils::getClientPlayer))
+            DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> ClientOrigin::sendRemovalOriginPacket);
     }
 
 }

@@ -26,7 +26,7 @@ public final class CobwebMixin {
         @Inject(at = @At("HEAD"), method = "onEntityCollision", cancellable = true)
         protected void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(ArachnidOriginType.Property.NO_COBWEB_SLOWDOWN)) {
+            if (origin != null && origin.hasLabel(ArachnidOriginType.Property.NO_COBWEB_SLOWDOWN)) {
                 if (!origin.isServerSide()) origin.getTypeData(OriginTypes.ARACHNID.get()).set(ArachnidOriginType.IN_COBWEB, true);
                 info.cancel();
             }

@@ -1,6 +1,8 @@
 package me.cometkaizo.origins.util;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileHelper;
 import net.minecraft.util.math.*;
 import net.minecraft.util.math.vector.Vector3d;
@@ -56,6 +58,24 @@ public final class PhysicsUtils {
 
     public static RayTraceResult getClosestRayTraceResult(RayTraceResult a, RayTraceResult b, Vector3d target) {
         return b == null || a != null && a.getHitVec().squareDistanceTo(target) < b.getHitVec().squareDistanceTo(target) ? a : b;
+    }
+
+    public static BlockState getBlockUnder(Entity entity) {
+        return entity.world.getBlockState(getPosUnder(entity));
+    }
+
+    public static BlockPos getPosUnder(Entity entity) {
+        return new BlockPos(entity.getPosX(), entity.getPosY() - 0.5000001D, entity.getPosZ());
+    }
+
+    public static BlockState getBlockAt(Entity entity) {
+        return entity.world.getBlockState(new BlockPos(entity.getPosX(), entity.getPosY(), entity.getPosZ()));
+    }
+
+    public static boolean isInRain(PlayerEntity player) {
+        BlockPos blockpos = player.getPosition();
+        return player.world.isRainingAt(blockpos) ||
+                player.world.isRainingAt(new BlockPos(blockpos.getX(), player.getBoundingBox().maxY, blockpos.getZ()));
     }
 
     private PhysicsUtils() {

@@ -108,7 +108,7 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
+    public boolean hasLabel(Object label, Origin origin) {
         return false;
     }
 
@@ -120,21 +120,21 @@ public abstract class AbstractOriginType extends ForgeRegistryEntry<OriginType> 
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
+    public void init(Origin origin) {
         for (Property property : properties) {
             property.onFirstActivate(origin);
         }
     }
 
     @Override
-    public void onActivate(Origin origin) {
+    public void activate(Origin origin) {
         for (Property property : properties) {
             property.onActivate(origin);
         }
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
+    public void deactivate(Origin origin) {
         for (Property property : properties) {
             property.onDeactivate(origin);
         }

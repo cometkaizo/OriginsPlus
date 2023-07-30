@@ -47,6 +47,12 @@ public class Packets {
         CHANNEL.messageBuilder(S2CCheckModVersion.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CCheckModVersion::toBytes).decoder(S2CCheckModVersion::new)
                 .consumer(S2CCheckModVersion::handle).add();
+        CHANNEL.messageBuilder(S2CFoxAction.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CFoxAction::toBytes).decoder(S2CFoxAction::new)
+                .consumer(S2CFoxAction::handle).add();
+        CHANNEL.messageBuilder(S2CEnumAction.class, nextId(), NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CEnumAction::toBytes).decoder(S2CEnumAction::new)
+                .consumer(S2CEnumAction::handle).add();
 
         CHANNEL.messageBuilder(C2SUsePower.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SUsePower::toBytes).decoder(C2SUsePower::new)
@@ -81,13 +87,23 @@ public class Packets {
         CHANNEL.messageBuilder(C2SHandleModVersion.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SHandleModVersion::toBytes).decoder(C2SHandleModVersion::new)
                 .consumer(C2SHandleModVersion::handle).add();
+        CHANNEL.messageBuilder(C2SEnumAction.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SEnumAction::toBytes).decoder(C2SEnumAction::new)
+                .consumer(C2SEnumAction::handle).add();
+        CHANNEL.messageBuilder(C2SUpdatePhasing.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SUpdatePhasing::toBytes).decoder(C2SUpdatePhasing::new)
+                .consumer(C2SUpdatePhasing::handle).add();
 
 
         LOGGER.info("Initialized Packets on Channel {}", CHANNEL);
     }
 
     public static void sendToServer(Object message) {
-        CHANNEL.sendToServer(message);
+        try {
+            CHANNEL.sendToServer(message);
+        } catch (IllegalArgumentException e) {
+            LOGGER.error("Invalid message found; did you register it?", e);
+        }
     }
 
 }

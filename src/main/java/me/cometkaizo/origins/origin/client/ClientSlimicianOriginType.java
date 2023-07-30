@@ -1,7 +1,7 @@
 package me.cometkaizo.origins.origin.client;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import me.cometkaizo.origins.network.C2SSlimicianAction;
+import me.cometkaizo.origins.network.C2SEnumAction;
 import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.origin.SlimicianOriginType;
@@ -243,7 +243,7 @@ public class ClientSlimicianOriginType {
     private static void resetFallDistance(PlayerEntity player) {
         player.fallDistance = 0;
         if (Minecraft.getInstance().getConnection() != null)
-            Packets.sendToServer(new C2SSlimicianAction(SlimicianOriginType.Action.RESET_FALL_DISTANCE));
+            Packets.sendToServer(new C2SEnumAction(SlimicianOriginType.Action.RESET_FALL_DISTANCE));
     }
 
     private static void applySlideEffects(PlayerEntity player) {

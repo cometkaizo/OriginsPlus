@@ -65,21 +65,23 @@ public final class BlockDropMixin {
             if (tool == null) return;
 
             Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH)) {
+            if (origin != null && origin.hasLabel(EnderianOriginType.Label.SILK_TOUCH)) {
                 BlockState block = lootContext.get(LootParameters.BLOCK_STATE);
-                if (shouldDropNormally(tool, block)) return;
+                if (originsPlus$shouldDropNormally(tool, block)) return;
                 CompoundNBT data = tool.getOrCreateTag();
                 data.putBoolean(ORIGIN_SILK_TOUCH, true);
             }
         }
 
-        private static boolean shouldDropNormally(ItemStack tool, BlockState block) {
+        @Unique
+        private static boolean originsPlus$shouldDropNormally(ItemStack tool, BlockState block) {
             return block == null ||
                     (!block.matchesBlock(Blocks.CAKE) && tool.canHarvestBlock(block)) ||
-                    shouldDropNormally(tool.getToolTypes(), block);
+                    originsPlus$shouldDropNormally(tool.getToolTypes(), block);
         }
 
-        private static boolean shouldDropNormally(Set<ToolType> toolTypes, BlockState block) {
+        @Unique
+        private static boolean originsPlus$shouldDropNormally(Set<ToolType> toolTypes, BlockState block) {
             for (ToolType toolType : toolTypes) {
                 Map<ToolType, Tags.IOptionalNamedTag<Block>> dropTags = OriginTags.Blocks.ENDERIAN_NORMAL_DROP_TAGS;
                 if (dropTags.containsKey(toolType) &&
@@ -94,7 +96,9 @@ public final class BlockDropMixin {
     @Mixin(ItemPredicate.class)
     public static class MixedItemPredicate {
 
+        @Unique
         private static final String INT_BOUND_MIN_FIELD = "field_211348_f";
+        @Unique
         private static final String INT_BOUND_MAX_FIELD = "field_211349_g";
 
         @Inject(at = @At(value = "RETURN", ordinal = 7),
@@ -159,7 +163,7 @@ public final class BlockDropMixin {
                                      CallbackInfoReturnable<List<ItemStack>> info) {
 
             Origin origin = Origin.getOrigin(blockBreaker);
-            if (origin != null && shouldDropOriginal(origin, blockState, tool)) {
+            if (origin != null && originsPlus$shouldDropOriginal(origin, blockState, tool)) {
                 List<ItemStack> returnValue = CollUtils.listOf(new ItemStack(blockState.getBlock().asItem()));
 
                 info.setReturnValue(returnValue);
@@ -173,8 +177,8 @@ public final class BlockDropMixin {
          * @return whether the block should drop its item
          */
         @Unique
-        private static boolean shouldDropOriginal(Origin origin, BlockState blockState, ItemStack tool) {
-            return origin.hasProperty(EnderianOriginType.Property.SILK_TOUCH) &&
+        private static boolean originsPlus$shouldDropOriginal(Origin origin, BlockState blockState, ItemStack tool) {
+            return origin.hasLabel(EnderianOriginType.Label.SILK_TOUCH) &&
                     blockState.matchesBlock(Blocks.SPAWNER) &&
                     (tool.getItem() instanceof PickaxeItem && ((PickaxeItem) tool.getItem()).getTier().getHarvestLevel() >= 3);
         }

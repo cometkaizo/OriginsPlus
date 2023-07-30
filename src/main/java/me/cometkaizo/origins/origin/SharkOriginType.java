@@ -78,29 +78,29 @@ public class SharkOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.WATER_BREATHING_PROPERTY ||
-                property == Property.AQUA_AFFINITY ||
-                property == Property.PULL_DROPPED_ITEMS_UNDERWATER ||
-                property == Property.VULNERABLE_TO_IMPALING;
+    public boolean hasLabel(Object label, Origin origin) {
+        return label == Property.WATER_BREATHING_PROPERTY ||
+                label == Property.AQUA_AFFINITY ||
+                label == Property.PULL_DROPPED_ITEMS_UNDERWATER ||
+                label == Property.VULNERABLE_TO_IMPALING;
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
+    public void init(Origin origin) {
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSharkOriginType.onFirstActivate(origin));
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         origin.getPlayer().inventory.mainInventory.forEach(SharkOriginType::tryAddTridentModifiers);
         origin.getPlayer().inventory.offHandInventory.forEach(SharkOriginType::tryAddTridentModifiers);
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSharkOriginType.onActivate(origin));
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         origin.getPlayer().inventory.mainInventory.forEach(SharkOriginType::tryRemoveTridentModifiers);
         origin.getPlayer().inventory.offHandInventory.forEach(SharkOriginType::tryRemoveTridentModifiers);
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientSharkOriginType.onDeactivate(origin));

@@ -26,7 +26,7 @@ public final class BreakSpeedMixin {
                 method = "getDigSpeed(Lnet/minecraft/block/BlockState;Lnet/minecraft/util/math/BlockPos;)F")
         protected boolean areEyesInFluid(PlayerEntity player, ITag<Fluid> fluidTag) {
             Origin origin = Origin.getOrigin(player);
-            if (origin != null && origin.hasProperty(SharkOriginType.Property.AQUA_AFFINITY)) {
+            if (origin != null && origin.hasLabel(SharkOriginType.Property.AQUA_AFFINITY)) {
                 return !areEyesInFluid(fluidTag);
             }
             return areEyesInFluid(fluidTag);
@@ -38,7 +38,7 @@ public final class BreakSpeedMixin {
                 remap = false)
         protected float changeBreakSpeed(float f) {
             Origin origin = Origin.getOrigin(this);
-            if (origin != null && origin.hasProperty(SharkOriginType.Property.AQUA_AFFINITY)) {
+            if (origin != null && origin.hasLabel(SharkOriginType.Property.AQUA_AFFINITY)) {
                 if (isInWater()) {
                     return f * 5;
                 }

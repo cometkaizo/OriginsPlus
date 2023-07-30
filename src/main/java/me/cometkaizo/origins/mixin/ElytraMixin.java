@@ -2,12 +2,14 @@ package me.cometkaizo.origins.mixin;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.matrix.MatrixStack;
-import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.animation.SimpleEaseInOut;
 import me.cometkaizo.origins.animation.SimpleEaseOut;
 import me.cometkaizo.origins.animation.SimpleTransition;
 import me.cometkaizo.origins.animation.Transition;
-import me.cometkaizo.origins.origin.*;
+import me.cometkaizo.origins.origin.ElytrianOriginType;
+import me.cometkaizo.origins.origin.Origin;
+import me.cometkaizo.origins.origin.OriginTypes;
+import me.cometkaizo.origins.origin.PhoenixOriginType;
 import net.minecraft.client.entity.player.AbstractClientPlayerEntity;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.renderer.IRenderTypeBuffer;
@@ -102,6 +104,7 @@ public final class ElytraMixin {
     @Mixin(PlayerModel.class)
     public static abstract class MixedPlayerModel<T extends LivingEntity> extends BipedModel<T> {
 
+        @Unique
         private static final double FLIGHT_MOVEMENT_REDUCTION = 0.3;
 
         public MixedPlayerModel(float modelSize) {
@@ -114,7 +117,7 @@ public final class ElytraMixin {
                 method = "setRotationAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V")
         protected void slowLimbMovementWhileFlying(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS) && entity.isElytraFlying()) {
+            if (origin != null && origin.hasLabel(ElytrianOriginType.Property.WINGS) && entity.isElytraFlying()) {
                 bipedLeftLeg.rotateAngleX *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleY *= FLIGHT_MOVEMENT_REDUCTION;
                 bipedLeftLeg.rotateAngleZ *= FLIGHT_MOVEMENT_REDUCTION;
@@ -145,9 +148,9 @@ public final class ElytraMixin {
                 .andThen(new SimpleTransition(-1.45, 0, SimpleEaseInOut.QUAD, FORWARD_BOOST.duration * 4/7));
 
         @Unique
-        private int animationStartTick = -1;
+        private int originsPlus$animationStartTick = -1;
         @Unique
-        private int prevBoostCooldown = 0;
+        private int originsPlus$prevBoostCooldown = 0;
 
 
         @Shadow @Final private ModelRenderer rightWing;
@@ -157,14 +160,14 @@ public final class ElytraMixin {
         protected void setRotationAngles(LivingEntity entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo info) {
             Origin origin = Origin.getOrigin(entity);
             if (origin != null &&
-                    origin.hasProperty(ElytrianOriginType.Property.WINGS)) {
+                    origin.hasLabel(ElytrianOriginType.Property.WINGS)) {
                 int upBoostTime;
                 if (origin.getType() == OriginTypes.ELYTRIAN.get())
                     upBoostTime = origin.getTimeTracker().getTimerLeft(ElytrianOriginType.Cooldown.UP_BOOST);
                 else upBoostTime = origin.getTimeTracker().getTimerLeft(PhoenixOriginType.Cooldown.UP_BOOST);
 
                 if (upBoostTime > 0) {
-                    animateTransition((int) ageInTicks, upBoostTime, UP_BOOST_ANIMATION);
+                    originsPlus$animateTransition((int) ageInTicks, upBoostTime, UP_BOOST_ANIMATION);
                 } else {
                     int forwardBoostTime;
                     if (origin.getType() == OriginTypes.ELYTRIAN.get())
@@ -172,7 +175,7 @@ public final class ElytraMixin {
                     else forwardBoostTime = origin.getTimeTracker().getTimerLeft(PhoenixOriginType.Cooldown.FORWARD_BOOST);
 
                     if (forwardBoostTime > 0) {
-                        animateTransition((int) ageInTicks, forwardBoostTime, FORWARD_BOOST_RETURN_ANIMATION);
+                        originsPlus$animateTransition((int) ageInTicks, forwardBoostTime, FORWARD_BOOST_RETURN_ANIMATION);
                     }
                 }
 
@@ -180,18 +183,18 @@ public final class ElytraMixin {
         }
 
         @Unique
-        private void animateTransition(int currentTick, int boostCooldown, Transition animation) {
-            if (boostCooldown > prevBoostCooldown) animationStartTick = currentTick;
+        private void originsPlus$animateTransition(int currentTick, int boostCooldown, Transition animation) {
+            if (boostCooldown > originsPlus$prevBoostCooldown) originsPlus$animationStartTick = currentTick;
 
-            if (animationStartTick > -1) {
-                double flap = animation.apply(animationStartTick, currentTick);
+            if (originsPlus$animationStartTick > -1) {
+                double flap = animation.apply(originsPlus$animationStartTick, currentTick);
                 leftWing.rotateAngleX += flap;
                 rightWing.rotateAngleX += flap;
-                if (animation.isFinished(animationStartTick, currentTick))
-                    animationStartTick = -1;
+                if (animation.isFinished(originsPlus$animationStartTick, currentTick))
+                    originsPlus$animationStartTick = -1;
             }
 
-            prevBoostCooldown = boostCooldown;
+            originsPlus$prevBoostCooldown = boostCooldown;
         }
     }
 
@@ -202,12 +205,12 @@ public final class ElytraMixin {
         @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true, remap = false)
         protected void shouldRender(ItemStack stack, LivingEntity entity, CallbackInfoReturnable<Boolean> info) {
             boolean invisible = entity.isInvisible();
-            boolean hasWings = Origin.hasProperty(entity, ElytrianOriginType.Property.WINGS);
-            Main.LOGGER.debug("------- should render elytra layer? {} : {} : {} : {}", entity, Origin.getOrigin(entity), invisible, hasWings);
+            boolean hasWings = Origin.hasLabel(entity, ElytrianOriginType.Property.WINGS);
+            //Main.LOGGER.debug("------- should render elytra layer? {} : {} : {} : {}", entity, Origin.getOrigin(entity), invisible, hasWings);
             if (invisible) return;
 
             if (hasWings) {
-                Main.LOGGER.debug("returning true because {} is not invisible and has wings", Origin.getOrigin(entity));
+                //Main.LOGGER.debug("returning true because {} is not invisible and has wings", Origin.getOrigin(entity));
                 info.setReturnValue(true);
             }
         }
@@ -240,7 +243,7 @@ public final class ElytraMixin {
             if (instance.canElytraFly(livingEntity)) return true;
 
             Origin origin = Origin.getOrigin(livingEntity);
-            return origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS);
+            return origin != null && origin.hasLabel(ElytrianOriginType.Property.WINGS);
         }
     }
 
@@ -265,7 +268,7 @@ public final class ElytraMixin {
             if (instance.elytraFlightTick(livingEntity, flightTicks)) return true;
 
             Origin origin = Origin.getOrigin(livingEntity);
-            return origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS);
+            return origin != null && origin.hasLabel(ElytrianOriginType.Property.WINGS);
         }
     }
 
@@ -304,7 +307,7 @@ public final class ElytraMixin {
                                           float headPitch,
                                           CallbackInfo info) {
             Origin origin = Origin.getOrigin(clientPlayer);
-            if (origin != null && origin.hasProperty(ElytrianOriginType.Property.WINGS))
+            if (origin != null && origin.hasLabel(ElytrianOriginType.Property.WINGS))
                 info.cancel();
         }
     }

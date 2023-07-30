@@ -8,13 +8,11 @@ import me.cometkaizo.origins.util.TimeTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.entity.MoverType;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvent;
 import net.minecraft.util.SoundEvents;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraftforge.api.distmarker.Dist;
@@ -26,6 +24,7 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import static me.cometkaizo.origins.origin.SharkOriginType.Cooldown.RIPTIDE_BOOST;
 import static me.cometkaizo.origins.origin.SharkOriginType.setSwimming;
 import static me.cometkaizo.origins.origin.client.OriginBarOverlayGui.Bar.*;
+import static me.cometkaizo.origins.util.PhysicsUtils.isInRain;
 
 @OnlyIn(Dist.CLIENT)
 public class ClientSharkOriginType {
@@ -101,12 +100,6 @@ public class ClientSharkOriginType {
             event.setDensity(event.getDensity() * AIR_FOG_REDUCTION_FACTOR);
         }
         event.setCanceled(true); // must cancel for this event to have an effect
-    }
-
-    private static boolean isInRain(PlayerEntity player) {
-        BlockPos blockpos = player.getPosition();
-        return player.world.isRainingAt(blockpos) ||
-                player.world.isRainingAt(new BlockPos(blockpos.getX(), player.getBoundingBox().maxY, blockpos.getZ()));
     }
 
     public static void onCameraSetup(EntityViewRenderEvent.CameraSetup event, Origin origin) {

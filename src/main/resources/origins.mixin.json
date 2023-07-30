@@ -1,7 +1,8 @@
 {
+  "minVersion": "0.8",
   "required": true,
-  "package": "me.cometkaizo.origins.mixin",
   "compatibilityLevel": "JAVA_8",
+  "package": "me.cometkaizo.origins.mixin",
   "mixins": [
     "AggroMixin$MixedMobEntity",
     "BlockDropDirectionMixin$MixedBlock",
@@ -20,6 +21,9 @@
     "LightningSpawnMixin$MixedServerWorld",
     "ModVersionCheckMixin$MixedClientHooks",
     "ModVersionCheckMixin$MixedFMLStatusPingSerializer",
+    "PhantomSpawnMixin$MixedPhantomSpawner",
+    "PhaseMixin$MixedEntity",
+    "PhaseMixin$MixedPlayerEntity",
     "PlayerJoinMixin$MixedPlayerList",
     "PlayerSpawnMixin$MixedPlayerList",
     "SlimicianSizeMixin$MixedPlayerEntity",
@@ -37,10 +41,15 @@
     "ElytraMixin$MixedElytraModel",
     "ElytraMixin$MixedPlayerModel",
     "EntityReachMixin$MixedPlayerController",
+    "PhaseMixin$MixedClientPlayerEntity",
     "SkyColorMixin$MixedClientWorld",
+    "ThrowPearlMixin$MixedMinecraft",
     "VisibilityMixin$MixedBipedArmorLayer",
+    "VisibilityMixin$MixedFirstPersonRenderer",
     "VisibilityMixin$MixedGameRenderer",
+    "VisibilityMixin$MixedHeadLayer",
     "VisibilityMixin$MixedIngameGui",
+    "VisibilityMixin$MixedLivingRenderer",
     "WaterBreathingMixin$MixedForgeIngameGui"
   ],
   "injectors": {

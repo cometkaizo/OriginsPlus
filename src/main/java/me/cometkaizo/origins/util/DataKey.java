@@ -2,9 +2,10 @@ package me.cometkaizo.origins.util;
 
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class DataKey<T> implements Serializable {
-    private static long keyCount = Long.MIN_VALUE;
+    private static final AtomicLong keyCount = new AtomicLong(Long.MIN_VALUE);
     private final String id;
     private final Class<T> type;
 
@@ -18,7 +19,7 @@ public class DataKey<T> implements Serializable {
     }
 
     private static String getNextId() {
-        return String.valueOf(keyCount++);
+        return String.valueOf(keyCount.getAndIncrement());
     }
 
     public String getId() {

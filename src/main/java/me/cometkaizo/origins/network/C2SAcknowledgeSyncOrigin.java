@@ -1,6 +1,5 @@
 package me.cometkaizo.origins.network;
 
-import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.origin.Origin;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
@@ -31,18 +30,18 @@ public class C2SAcknowledgeSyncOrigin {
         context.enqueueWork(() -> {
             ServerPlayerEntity sender = context.getSender();
             if (sender == null) {
-                Main.LOGGER.error("Invalid synchronization packet: no sender");
+                LOGGER.error("Invalid acknowledgement packet: no sender");
                 return;
             }
 
             Origin origin = Origin.getOrigin(sender);
             if (origin != null) {
                 origin.setSynchronized();
-                Main.LOGGER.info("Origins synchronized for {} to be {}",
+                LOGGER.info("Origins acknowledged for {} to be {}",
                         sender.getName().getString(),
                         origin.getType() == null ? "null" : origin.getType().getName());
             } else {
-                Main.LOGGER.error("Invalid synchronization packet: {} does not have origin capability",
+                LOGGER.error("Invalid acknowledgement packet: {} does not have origin capability",
                         sender.getGameProfile().getName());
             }
         });

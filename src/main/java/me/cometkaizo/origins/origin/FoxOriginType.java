@@ -1,29 +1,36 @@
 package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.common.OriginTags;
+import me.cometkaizo.origins.network.Packets;
+import me.cometkaizo.origins.network.S2CEnumAction;
 import me.cometkaizo.origins.potion.OriginEffects;
 import me.cometkaizo.origins.property.SpeciesProperty;
 import me.cometkaizo.origins.util.AttributeUtils;
 import me.cometkaizo.origins.util.DataKey;
 import me.cometkaizo.origins.util.DataManager;
 import me.cometkaizo.origins.util.EffectApplier;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.ai.attributes.Attributes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Food;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
 import net.minecraft.util.DamageSource;
-import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.fml.network.PacketDistributor;
+
+import static me.cometkaizo.origins.util.PhysicsUtils.getBlockUnder;
 
 public class FoxOriginType extends AbstractOriginType {
     public static final float FOX_RALLY_RANGE = 25;
-    public static final SpeciesProperty FOX_SPECIES = new SpeciesProperty.Builder()
-            .setMobSpecies(EntityType.FOX)
+    public static final SpeciesProperty FOX_SPECIES = SpeciesProperty.Builder
+            .withMobSpecies(EntityType.FOX)
             .setRallyRadius(FOX_RALLY_RANGE).build();
     public static final DataKey<Integer> SNEAK_TIME = DataKey.create(Integer.class);
     public static final DataKey<Long> CAMOUFLAGE_START_TICK = DataKey.create(Long.class),
@@ -40,14 +47,18 @@ public class FoxOriginType extends AbstractOriginType {
     protected float berryHealAmp = 2;
     protected EffectApplier berryRegenApplier = new EffectApplier()
             .withEffect(Effects.REGENERATION, 5 * 20, 0);
-    protected double camouflageSneakTime = 4 * 20;
-    protected double stopCamouflageStandTime = 2.7 * 20;
+    protected double camouflageSneakTime = 3 * 20;
+    protected double stopCamouflageStandTime = 5 * 20;
     protected EffectApplier camouflageApplier = new EffectApplier()
             .withEffect(OriginEffects.CAMOUFLAGE.get(), 999999, 0, false, false);
 
     public enum Property {
         IGNORE_HUNGER_FOR_SWEET_BERRIES,
         NIGHT_VISION
+    }
+
+    public enum Action {
+        START_CAMOUFLAGE, STOP_CAMOUFLAGE
     }
 
     protected FoxOriginType() {
@@ -66,15 +77,15 @@ public class FoxOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.NIGHT_VISION ||
-                property == Property.IGNORE_HUNGER_FOR_SWEET_BERRIES ||
-                super.hasMixinProperty(property, origin);
+    public boolean hasLabel(Object label, Origin origin) {
+        return label == Property.NIGHT_VISION ||
+                label == Property.IGNORE_HUNGER_FOR_SWEET_BERRIES ||
+                super.hasLabel(label, origin);
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
-        super.onFirstActivate(origin);
+    public void init(Origin origin) {
+        super.init(origin);
         if (origin.isServerSide()) {
             origin.getTypeData().register(SNEAK_TIME, -1);
             origin.getTypeData().register(LAST_X, 0D);
@@ -88,16 +99,16 @@ public class FoxOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, Attributes.MAX_HEALTH, maxHealth);
         AttributeUtils.setAttribute(player, Attributes.MOVEMENT_SPEED, 0.13);
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, Attributes.MAX_HEALTH, Attributes.MAX_HEALTH.getDefaultValue());
         AttributeUtils.setAttribute(player, Attributes.MOVEMENT_SPEED, player.abilities.getWalkSpeed());
@@ -105,13 +116,25 @@ public class FoxOriginType extends AbstractOriginType {
     }
 
     @Override
+    public void onEvent(Object event, Origin origin) {
+        super.onEvent(event, origin);
+        if (isCanceled(event)) return;
+        if (event == Action.START_CAMOUFLAGE) {
+            applyCamouflage(origin);
+        } else if (event == Action.STOP_CAMOUFLAGE) {
+            origin.getPlayer().removePotionEffect(OriginEffects.CAMOUFLAGE.get());
+        }
+    }
+
+    @Override
     public void onPlayerSensitiveEvent(Object event, Origin origin) {
         super.onPlayerSensitiveEvent(event, origin);
         if (isCanceled(event)) return;
         if (event instanceof LivingHurtEvent) {
-            LivingHurtEvent hurtEvent = (LivingHurtEvent) event;
-            cancelFallDamage(hurtEvent);
-            tryApplySpeedBoost(hurtEvent, origin);
+            cancelFallDamage((LivingHurtEvent) event);
+            origin.getPlayer().addPotionEffect(new EffectInstance(Effects.SLOW_FALLING, 1, 0));
+        } else if (event instanceof LivingDamageEvent) {
+            tryApplySpeedBoost((LivingDamageEvent) event, origin);
         } else if (event instanceof LivingEntityUseItemEvent.Finish) {
             tryApplyBerryEffects((LivingEntityUseItemEvent.Finish) event, origin);
         } else if (event instanceof TickEvent.PlayerTickEvent) {
@@ -124,7 +147,7 @@ public class FoxOriginType extends AbstractOriginType {
         if (event.getSource() == DamageSource.FALL) event.setCanceled(true);
     }
 
-    protected void tryApplySpeedBoost(LivingHurtEvent event, Origin origin) {
+    protected void tryApplySpeedBoost(LivingDamageEvent event, Origin origin) {
         PlayerEntity player = origin.getPlayer();
         float health = player.getHealth();
         float damageAmount = event.getAmount();
@@ -202,6 +225,8 @@ public class FoxOriginType extends AbstractOriginType {
         PlayerEntity player = origin.getPlayer();
 
         camouflageApplier.applyTo(player);
+        if (origin.isServerSide())
+            Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CEnumAction(player, Action.START_CAMOUFLAGE));
     }
 
     protected void stopCamouflaging(Origin origin) {
@@ -210,15 +235,20 @@ public class FoxOriginType extends AbstractOriginType {
 
         data.set(SNEAK_TIME, -1);
         player.removePotionEffect(OriginEffects.CAMOUFLAGE.get());
+        if (origin.isServerSide())
+            Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CEnumAction(player, Action.STOP_CAMOUFLAGE));
     }
 
     protected void updateMovementSpeed(Origin origin) {
         PlayerEntity player = origin.getPlayer();
-        if (shouldApplyExtraMovementSpeed(player)) AttributeUtils.setAttribute(player, Attributes.MOVEMENT_SPEED, 0.16);
+        if (!player.isOnGround()) return;
+        BlockState ground = getBlockUnder(player);
+        if (!ground.isSolid()) return;
+        if (shouldApplyExtraMovementSpeed(ground)) AttributeUtils.setAttribute(player, Attributes.MOVEMENT_SPEED, 0.16);
         else AttributeUtils.setAttribute(player, Attributes.MOVEMENT_SPEED, 0.13);
     }
 
-    protected boolean shouldApplyExtraMovementSpeed(PlayerEntity player) {
-        return player.world.getBlockState(new BlockPos(player.getPosX(), player.getPosY() - 0.5000001D, player.getPosZ())).isIn(OriginTags.Blocks.FOX_EXTRA_SPEED);
+    protected boolean shouldApplyExtraMovementSpeed(BlockState ground) {
+        return ground.isIn(OriginTags.Blocks.FOX_EXTRA_SPEED);
     }
 }

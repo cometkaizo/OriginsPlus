@@ -14,6 +14,7 @@ import net.minecraft.util.math.EntityRayTraceResult;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
@@ -30,22 +31,25 @@ public final class ImpalingMixin {
         @ModifyVariable(method = "onEntityHit", at = @At("STORE"), ordinal = 1)
         protected float getCustomDamageModifier(float f, EntityRayTraceResult result) {
             Entity target = result.getEntity();
-            return 8 + getExtraDamage(target);
+            return 8 + originsPlus$getExtraDamage(target);
         }
 
-        private float getExtraDamage(Entity target) {
+        @Unique
+        private float originsPlus$getExtraDamage(Entity target) {
             int impalingLevel = EnchantmentHelper.getEnchantmentLevel(Enchantments.IMPALING, thrownStack);
-            if (shouldApplyExtraDamage(impalingLevel, target))
+            if (originsPlus$shouldApplyExtraDamage(impalingLevel, target))
                 return impalingLevel * 2.5F;
             return 0;
         }
 
-        private boolean shouldApplyExtraDamage(int level, Entity target) {
-            return !isExtraDamageAppliedByVanilla(level, target) &&
-                    target.isWet() || Origin.hasProperty(target, SharkOriginType.Property.VULNERABLE_TO_IMPALING);
+        @Unique
+        private boolean originsPlus$shouldApplyExtraDamage(int level, Entity target) {
+            return !originsPlus$isExtraDamageAppliedByVanilla(level, target) &&
+                    target.isWet() || Origin.hasLabel(target, SharkOriginType.Property.VULNERABLE_TO_IMPALING);
         }
 
-        private boolean isExtraDamageAppliedByVanilla(int level, Entity target) {
+        @Unique
+        private boolean originsPlus$isExtraDamageAppliedByVanilla(int level, Entity target) {
             if (!(target instanceof LivingEntity)) return false;
             LivingEntity livingEntity = (LivingEntity) target;
             return Enchantments.IMPALING.calcDamageByCreature(level, livingEntity.getCreatureAttribute()) > 0;

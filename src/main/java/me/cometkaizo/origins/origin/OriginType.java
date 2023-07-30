@@ -20,15 +20,15 @@ public interface OriginType extends IForgeRegistryEntry<OriginType>, Serializabl
     <T extends Property> List<T> getProperties(Class<T> propertyType);
     void onEvent(Object event, Origin origin);
     void onPlayerSensitiveEvent(Object event, Origin origin);
-    boolean hasMixinProperty(Object property, Origin origin);
+    boolean hasLabel(Object label, Origin origin);
 
     /**
      * Performs the hotkey action. Called on both sides when the hotkey is pressed.
      */
     void performAction(Origin origin);
-    void onFirstActivate(Origin origin);
-    void onActivate(Origin origin);
-    void onDeactivate(Origin origin);
+    void init(Origin origin);
+    void activate(Origin origin);
+    void deactivate(Origin origin);
 
     /**
      * Initializes this origin type. Called <i>after</i> the registry is registered.

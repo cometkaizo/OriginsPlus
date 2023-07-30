@@ -72,37 +72,37 @@ public class DataManager implements INBTSerializable<INBT> {
     }
     public <T extends Serializable> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSavedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer());
     }
 
     public <N extends INBT, T extends INBTSerializable<N>> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSavedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer(defaultValue));
     }
 
     public <T> void registerSaved(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace, INBTSerializer<T> serializer) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSavedEntry(key.getId(), key, defaultValue, namespace, serializer);
     }
 
     public <T extends Serializable> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSyncedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer());
     }
 
     public <N extends INBT, T extends INBTSerializable<N>> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSyncedEntry(key.getId(), key, defaultValue, namespace, INBTSerializer.getSerializer(defaultValue));
     }
 
     public <T> void registerSynced(@Nonnull DataKey<T> key, T defaultValue, ResourceLocation namespace, INBTSerializer<T> serializer) {
         Objects.requireNonNull(key, "Key cannot be null");
-        if (entries.containsKey(key.getId())) return;
+        if (contains(key)) return;
         addSyncedEntry(key.getId(), key, defaultValue, namespace, serializer);
     }
 
@@ -113,11 +113,10 @@ public class DataManager implements INBTSerializable<INBT> {
     }
 
     private void throwIfDuplicateId(DataKey<?> key) {
-        String id = key.getId();
-        Entry<?> duplicate = entries.get(id);
+        Entry<?> duplicate = getEntryRaw(key);
         if (duplicate != null) {
             String keyTypeName = key.getType().getName();
-            throw new IllegalStateException(keyTypeName + " key has ID " + id + " that is already used for value: " + duplicate.value);
+            throw new IllegalArgumentException(keyTypeName + " key has ID " + key.getId() + " that is already used for value: " + duplicate.value);
         }
     }
 
@@ -140,25 +139,28 @@ public class DataManager implements INBTSerializable<INBT> {
         Objects.requireNonNull(id, "Id cannot be null");
         Objects.requireNonNull(entry, "Entry cannot be null");
         lock.writeLock().lock();
-        entries.put(id, entry);
-        lock.writeLock().unlock();
+        try {
+            entries.put(id, entry);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Entry<T> getEntry(DataKey<T> key) {
+    private <T> Entry<T> getEntryRaw(DataKey<T> key) {
         this.lock.readLock().lock();
-        Entry<?> entry;
 
         try {
-            entry = entries.get(key.getId());
-        } catch (Throwable throwable) {
-            throw new RuntimeException(throwable);
+            return (Entry<T>) entries.get(key.getId());
         } finally {
             this.lock.readLock().unlock();
         }
+    }
 
+    private <T> Entry<T> getEntry(DataKey<T> key) {
+        Entry<T> entry = getEntryRaw(key);
         throwIfIllegalEntry(key, entry);
-        return (Entry<T>) entry;
+        return entry;
     }
 
     private void throwIfIllegalEntry(DataKey<?> key, Entry<?> entry) {
@@ -177,9 +179,13 @@ public class DataManager implements INBTSerializable<INBT> {
     }
 
     public <T> void set(DataKey<T> key, T value) {
-        Entry<T> entry = getEntry(key);
-        if (!Objects.equals(value, entry.value))
-            entry.value = value;
+        final Entry<T> entry = getEntry(key);
+        if (!Objects.equals(value, entry.value)) {
+            //noinspection SynchronizationOnLocalVariableOrMethodParameter
+            synchronized (entry) {
+                entry.value = value;
+            }
+        }
     }
 
     public void increase(DataKey<Integer> key, int value) {
@@ -223,46 +229,70 @@ public class DataManager implements INBTSerializable<INBT> {
 
 
     public CompoundNBT serializeSynced() {
-        CompoundNBT nbt = new CompoundNBT();
-        for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
-            Entry<?> entry = data.getValue();
-            if (entry instanceof SerializableEntry) {
-                SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
-                nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
+        lock.readLock().lock();
+
+        try {
+            CompoundNBT nbt = new CompoundNBT();
+            for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
+                Entry<?> entry = data.getValue();
+                if (entry instanceof SerializableEntry) {
+                    SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
+                    nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
+                }
             }
+            return nbt;
+        } finally {
+            lock.readLock().unlock();
         }
-        return nbt;
     }
 
     public void deserializeSynced(CompoundNBT nbt) {
-        for (String key : nbt.keySet()) {
-            INBT entryData = nbt.get(key);
-            SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
-            serializableEntry.deserializeNBT(entryData);
+        lock.writeLock().lock();
+
+        try {
+            for (String key : nbt.keySet()) {
+                INBT entryData = nbt.get(key);
+                SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
+                serializableEntry.deserializeNBT(entryData);
+            }
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
     @Override
     public CompoundNBT serializeNBT() {
-        CompoundNBT nbt = new CompoundNBT();
-        for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
-            Entry<?> entry = data.getValue();
-            if (entry instanceof SerializableEntry) {
-                SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
-                if (!serializableEntry.save) continue;
-                nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
+        lock.readLock().lock();
+
+        try {
+            CompoundNBT nbt = new CompoundNBT();
+            for (Map.Entry<String, Entry<?>> data : entries.entrySet()) {
+                Entry<?> entry = data.getValue();
+                if (entry instanceof SerializableEntry) {
+                    SerializableEntry<?> serializableEntry = (SerializableEntry<?>) entry;
+                    if (!serializableEntry.save) continue;
+                    nbt.put(serializableEntry.namespace.toString(), serializableEntry.serializeNBT());
+                }
             }
+            return nbt;
+        } finally {
+            lock.readLock().unlock();
         }
-        return nbt;
     }
 
     @Override
     public void deserializeNBT(INBT inbt) {
-        CompoundNBT compound = (CompoundNBT) inbt;
-        for (String key : compound.keySet()) {
-            INBT entryData = compound.get(key);
-            SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
-            serializableEntry.deserializeNBT(entryData);
+        lock.writeLock().lock();
+
+        try {
+            CompoundNBT compound = (CompoundNBT) inbt;
+            for (String key : compound.keySet()) {
+                INBT entryData = compound.get(key);
+                SerializableEntry<?> serializableEntry = getSerializableEntry(ResourceLocation.create(key, ':'));
+                serializableEntry.deserializeNBT(entryData);
+            }
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 

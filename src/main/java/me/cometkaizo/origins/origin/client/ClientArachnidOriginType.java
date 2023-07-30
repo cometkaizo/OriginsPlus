@@ -3,7 +3,7 @@ package me.cometkaizo.origins.origin.client;
 import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.vertex.IVertexBuilder;
 import me.cometkaizo.origins.Main;
-import me.cometkaizo.origins.network.C2SArachnidAction;
+import me.cometkaizo.origins.network.C2SEnumAction;
 import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.ArachnidOriginType;
 import me.cometkaizo.origins.origin.Origin;
@@ -59,12 +59,12 @@ public class ClientArachnidOriginType {
         origin.getTypeData().register(GRAPPLE_ENTITY, null);
     }
 
-    public static void onActivate(Origin origin) {
+    public static void activate(Origin origin) {
         if (!origin.isPhysicalClient()) return;
         barOverlay.start();
     }
 
-    public static void onDeactivate(Origin origin) {
+    public static void deactivate(Origin origin) {
         if (!origin.isPhysicalClient()) return;
         barOverlay.stop();
     }
@@ -140,7 +140,7 @@ public class ClientArachnidOriginType {
 
     private static void resetFallDistance(ClientPlayerEntity player) {
         player.fallDistance = 0;
-        Packets.sendToServer(new C2SArachnidAction(ArachnidOriginType.Action.RESET_FALL_DISTANCE));
+        Packets.sendToServer(new C2SEnumAction(ArachnidOriginType.Action.RESET_FALL_DISTANCE));
     }
 
     private static boolean isInCobweb(Origin origin) {

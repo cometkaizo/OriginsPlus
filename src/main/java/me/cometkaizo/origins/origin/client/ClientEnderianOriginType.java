@@ -1,8 +1,7 @@
 package me.cometkaizo.origins.origin.client;
 
 import me.cometkaizo.origins.common.OriginDamageSources;
-import me.cometkaizo.origins.network.C2SEnderianAction;
-import me.cometkaizo.origins.network.C2SThrowEnderianPearl;
+import me.cometkaizo.origins.network.C2SEnumAction;
 import me.cometkaizo.origins.network.Packets;
 import me.cometkaizo.origins.origin.Origin;
 import me.cometkaizo.origins.util.SoundUtils;
@@ -10,8 +9,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.player.ClientPlayerEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
@@ -21,7 +18,6 @@ import net.minecraft.util.math.RayTraceResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 
 import java.util.Random;
 
@@ -48,8 +44,6 @@ public class ClientEnderianOriginType {
     public static void onEvent(Object event, Origin origin) {
         if (event instanceof TickEvent.ClientTickEvent) {
             onClientTick((TickEvent.ClientTickEvent) event, origin);
-        } else if (event instanceof PlayerInteractEvent.RightClickEmpty) {
-            onEmptyClick((PlayerInteractEvent.RightClickEmpty) event, origin);
         }
     }
 
@@ -76,10 +70,10 @@ public class ClientEnderianOriginType {
         BlockState blockstate = player.world.getBlockState(blockpos);
         if (blockstate.getBlock() == Blocks.CARVED_PUMPKIN) {
             pumpkinScare(origin);
-            Packets.sendToServer(new C2SEnderianAction(Action.PUMPKIN_SCARE));
+            Packets.sendToServer(new C2SEnumAction(Action.PUMPKIN_SCARE));
         } else if (blockstate.getBlock() == Blocks.JACK_O_LANTERN) {
             jackOLanternScare(origin);
-            Packets.sendToServer(new C2SEnderianAction(Action.JACK_O_LANTERN_SCARE));
+            Packets.sendToServer(new C2SEnumAction(Action.JACK_O_LANTERN_SCARE));
         }
     }
 
@@ -91,7 +85,7 @@ public class ClientEnderianOriginType {
     private static void pumpkinScare(Origin origin) {
         boolean damaged = origin.getPlayer().attackEntityFrom(OriginDamageSources.SCARE, PUMPKIN_SCARE_DAMAGE / 2F);
         if (damaged) SoundUtils.playSound(origin.getPlayer(), SoundEvents.ENTITY_ENDERMAN_HURT, SoundCategory.HOSTILE, 0.7F, 1);
-    }
+    }/*
 
     public static void onEmptyClick(PlayerInteractEvent.RightClickEmpty event, Origin origin) {
         if (event.isCanceled()) return;
@@ -99,13 +93,12 @@ public class ClientEnderianOriginType {
         PlayerEntity player = origin.getPlayer();
         if (!player.equals(event.getPlayer())) return;
 
-        if (event.getItemStack() != ItemStack.EMPTY) return;
         if (hasPearlCooldown(origin)) return;
 
-        SoundUtils.playSound(player, SoundEvents.ENTITY_ENDER_PEARL_THROW, SoundCategory.NEUTRAL, 0.5F, 0.4F / (RANDOM.nextFloat() * 0.4F + 0.8F));
+        SoundUtils.playSound(player, SoundEvents.ENTITY_ENDER_PEARL_THROW, SoundCategory.PLAYERS, 0.5F, 0.4F / (RANDOM.nextFloat() * 0.4F + 0.8F));
         player.getCooldownTracker().setCooldown(Items.ENDER_PEARL, 20);
         Packets.sendToServer(new C2SThrowEnderianPearl());
-    }
+    }*/
 
 
 }

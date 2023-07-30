@@ -95,7 +95,7 @@ public class PhoenixOriginType extends AbstractOriginType {
     }
 
 
-    public enum Property {
+    public enum Label {
         RESPAWN_AT_DEATH
     }
 
@@ -118,26 +118,26 @@ public class PhoenixOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return /*property == Property.RESPAWN_AT_DEATH || */property == ElytrianOriginType.Property.WINGS;
+    public boolean hasLabel(Object label, Origin origin) {
+        return label == Label.RESPAWN_AT_DEATH || label == ElytrianOriginType.Property.WINGS;
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
-        super.onFirstActivate(origin);
+    public void init(Origin origin) {
+        super.init(origin);
         origin.getTypeData().register(LAST_DEATH_DIMENSION, null);
         origin.getTypeData().register(LAST_DEATH_POS, null);
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onActivate(origin));
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPhoenixOriginType.onDeactivate(origin));
     }
 
@@ -213,7 +213,8 @@ public class PhoenixOriginType extends AbstractOriginType {
         DataManager dataManager = origin.getTypeData();
         ServerWorld deathWorld = dataManager.get(LAST_DEATH_DIMENSION);
         Vector3d deathPos = dataManager.get(LAST_DEATH_POS);
-        player.teleport(deathWorld, deathPos.x, deathPos.y, deathPos.z, 0, 0);
+        if (player != null && deathWorld != null && deathPos != null)
+            player.teleport(deathWorld, deathPos.x, deathPos.y, deathPos.z, 0, 0);
     }
 
     private void onLivingLand(Origin origin) {

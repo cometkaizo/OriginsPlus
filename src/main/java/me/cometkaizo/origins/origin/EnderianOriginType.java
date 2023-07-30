@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
+import static me.cometkaizo.origins.util.PhysicsUtils.isInRain;
 import static net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn;
 
 public class EnderianOriginType extends AbstractOriginType {
@@ -52,8 +53,8 @@ public class EnderianOriginType extends AbstractOriginType {
     public static final int WATER_DAMAGE = 3;
     public static final float ENDERMAN_RALLY_RANGE = 35;
     public static final String ENDERMAN_NO_AGGRO_LIST_KEY = EnderianOriginType.class.getName() + "_enderman_no_aggro";
-    public static final SpeciesProperty ENDERMAN_SPECIES = new SpeciesProperty.Builder()
-            .setAngerableSpecies(EntityType.ENDERMAN)
+    public static final SpeciesProperty ENDERMAN_SPECIES = SpeciesProperty.Builder
+            .withAngerableSpecies(EntityType.ENDERMAN)
             .setRallyRadius(ENDERMAN_RALLY_RANGE).build();
     public static final int ENDER_PEARL_COOLDOWN_TIME = 20;
 
@@ -62,8 +63,12 @@ public class EnderianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public boolean hasMixinProperty(Object property, Origin origin) {
-        return property == Property.SILK_TOUCH || property == Property.EXTRA_ENTITY_REACH;
+    public boolean hasLabel(Object label, Origin origin) {
+        return label == Label.SILK_TOUCH ||
+                label == Label.EXTRA_ENTITY_REACH ||
+                label == Label.THROW_ENDER_PEARL ||
+                label == Label.CANNOT_SEE_ENTITIES_WEARING_PUMPKINS ||
+                super.hasLabel(label, origin);
     }
 
     public enum Action {
@@ -71,9 +76,11 @@ public class EnderianOriginType extends AbstractOriginType {
         JACK_O_LANTERN_SCARE
     }
 
-    public enum Property {
+    public enum Label {
         SILK_TOUCH,
-        EXTRA_ENTITY_REACH
+        EXTRA_ENTITY_REACH,
+        THROW_ENDER_PEARL,
+        CANNOT_SEE_ENTITIES_WEARING_PUMPKINS
     }
 
     public EnderianOriginType() {
@@ -87,6 +94,12 @@ public class EnderianOriginType extends AbstractOriginType {
                 ),
                 ENDERMAN_SPECIES
         );
+    }
+
+    public static boolean isWearingPumpkin(LivingEntity entity) {
+        ItemStack stack = entity.getItemStackFromSlot(EquipmentSlotType.HEAD);
+        Item item = stack.getItem();
+        return item == Items.CARVED_PUMPKIN;
     }
 
     public static void throwEnderPearl(Origin origin) {
@@ -147,14 +160,14 @@ public class EnderianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onActivate(Origin origin) {
+    public void activate(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, ForgeMod.REACH_DISTANCE.get(), REACH);
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onActivate(origin));
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
+    public void deactivate(Origin origin) {
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, ForgeMod.REACH_DISTANCE.get(), ForgeMod.REACH_DISTANCE.get().getDefaultValue());
         unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientEnderianOriginType.onDeactivate(origin));
@@ -186,7 +199,7 @@ public class EnderianOriginType extends AbstractOriginType {
         if (!origin.getPlayer().equals(event.player)) return;
         PlayerEntity player = origin.getPlayer();
 
-        if (player.isInWaterRainOrBubbleColumn()) {
+        if (player.isInWaterOrBubbleColumn() || isInRain(player) && player.getItemStackFromSlot(EquipmentSlotType.HEAD).isEmpty()) {
             applyWaterDamage(player);
         } else if (player.getItemStackFromSlot(EquipmentSlotType.HEAD).getItem() == Items.CARVED_PUMPKIN) {
             applyPumpkinDamage(player);

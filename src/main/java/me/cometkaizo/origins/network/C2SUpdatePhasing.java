@@ -1,7 +1,7 @@
 package me.cometkaizo.origins.network;
 
-import me.cometkaizo.origins.origin.CapabilityOrigin;
-import me.cometkaizo.origins.origin.ElytrianOriginType;
+import me.cometkaizo.origins.origin.Origin;
+import me.cometkaizo.origins.origin.PhantomOriginType;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.network.PacketBuffer;
 import net.minecraftforge.fml.network.NetworkEvent;
@@ -10,28 +10,21 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.function.Supplier;
 
-public class C2SElytrianAction {
+public class C2SUpdatePhasing {
 
     public static final Logger LOGGER = LogManager.getLogger();
-    private final ElytrianOriginType.Action action;
+    private final boolean phasing;
 
-    public C2SElytrianAction(ElytrianOriginType.Action action) {
-        this.action = action;
+    public C2SUpdatePhasing(boolean phasing) {
+        this.phasing = phasing;
     }
 
-    public C2SElytrianAction(PacketBuffer packetBuffer) {
-        this.action = packetBuffer.readEnumValue(ElytrianOriginType.Action.class);
-    }
-
-    public static C2SEnumAction upBoost() {
-        return new C2SEnumAction(ElytrianOriginType.Action.UP_BOOST);
-    }
-    public static C2SEnumAction forwardBoost() {
-        return new C2SEnumAction(ElytrianOriginType.Action.FORWARD_BOOST);
+    public C2SUpdatePhasing(PacketBuffer packetBuffer) {
+        this.phasing = packetBuffer.readBoolean();
     }
 
     public void toBytes(PacketBuffer buf) {
-        buf.writeEnumValue(action);
+        buf.writeBoolean(phasing);
     }
 
     public boolean handle(Supplier<NetworkEvent.Context> supplier) {
@@ -44,7 +37,11 @@ public class C2SElytrianAction {
                 return;
             }
 
-            sender.getCapability(CapabilityOrigin.ORIGIN_CAPABILITY).ifPresent(o -> o.onEvent(action));
+            sender.setNoGravity(phasing);
+            sender.noClip = phasing;
+            if (phasing) sender.fallDistance = 0;
+            Origin origin = Origin.getOrigin(sender);
+            if (origin != null) origin.getTypeData().set(PhantomOriginType.IS_PHASING, phasing);
         });
         return true;
     }

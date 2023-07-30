@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -38,6 +39,7 @@ public final class BlockDropDirectionMixin {
 
     @Mixin(Block.class)
     public static abstract class MixedBlock extends AbstractBlock {
+        @Unique
         private static final String ITEM_MOTION_KEY = MIXIN_TAG_KEY + "_itemMotion";
 
         @Shadow
@@ -67,7 +69,7 @@ public final class BlockDropDirectionMixin {
             if (drops == null || entity == null) return drops;
 
             Origin origin = Origin.getOrigin(entity);
-            if (origin == null || !origin.hasProperty(SharkOriginType.Property.PULL_DROPPED_ITEMS_UNDERWATER) ||
+            if (origin == null || !origin.hasLabel(SharkOriginType.Property.PULL_DROPPED_ITEMS_UNDERWATER) ||
                     !entity.areEyesInFluid(FluidTags.WATER)) return drops;
 
             double amp = SharkOriginType.ITEM_PULL_AMP;

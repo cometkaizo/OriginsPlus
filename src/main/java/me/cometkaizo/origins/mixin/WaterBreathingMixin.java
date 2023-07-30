@@ -20,6 +20,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.client.gui.ForgeIngameGui;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -44,7 +45,7 @@ public final class WaterBreathingMixin {
             boolean submerged = areEyesInFluid(fluidTag);
             Origin origin = Origin.getOrigin(entity);
             if (origin != null) {
-                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
+                return origin.hasLabel(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
             }
             return submerged;
         }
@@ -52,14 +53,15 @@ public final class WaterBreathingMixin {
         @Inject(at = @At("RETURN"), method = "decreaseAirSupply", cancellable = true)
         protected void decreaseAirSupply(int air, CallbackInfoReturnable<Integer> info) {
             Origin origin = Origin.getOrigin(this);
-            if (origin != null && origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) && isInRain()) {
+            if (origin != null && origin.hasLabel(SharkOriginType.Property.WATER_BREATHING_PROPERTY) && originsPlus$isInRain()) {
                 if (rand.nextInt(2) > 0) {
                     info.setReturnValue(air);
                 }
             }
         }
 
-        private boolean isInRain() {
+        @Unique
+        private boolean originsPlus$isInRain() {
             BlockPos blockpos = getPosition();
             return world.isRainingAt(blockpos) ||
                     world.isRainingAt(new BlockPos(blockpos.getX(), getBoundingBox().maxY, blockpos.getZ()));
@@ -69,7 +71,7 @@ public final class WaterBreathingMixin {
         protected boolean damageByDehydration(LivingEntity entity, DamageSource source, float amount) {
             if (source == DamageSource.DROWN) {
                 Origin origin = Origin.getOrigin(entity);
-                if (origin != null && origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY)) {
+                if (origin != null && origin.hasLabel(SharkOriginType.Property.WATER_BREATHING_PROPERTY)) {
                     return attackEntityFrom(OriginDamageSources.DEHYDRATION, amount);
                 }
             }
@@ -96,7 +98,7 @@ public final class WaterBreathingMixin {
         protected boolean isSubmergedInProxy(PlayerEntity player, ITag<Fluid> fluidTag) {
             Origin origin = Origin.getOrigin(player);
             if (origin != null) {
-                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != areEyesInFluid(fluidTag);
+                return origin.hasLabel(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != areEyesInFluid(fluidTag);
             }
             return areEyesInFluid(fluidTag);
         }
@@ -110,7 +112,7 @@ public final class WaterBreathingMixin {
             boolean submerged = player.areEyesInFluid(fluidTag);
             Origin origin = Origin.getOrigin(player);
             if (origin != null) {
-                return origin.hasProperty(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
+                return origin.hasLabel(SharkOriginType.Property.WATER_BREATHING_PROPERTY) != submerged;
             }
             return submerged;
         }

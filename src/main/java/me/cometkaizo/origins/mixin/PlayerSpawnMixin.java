@@ -14,10 +14,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.vector.Vector3d;
 import net.minecraft.world.World;
 import net.minecraft.world.server.ServerWorld;
-import org.apache.logging.log4j.Logger;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -30,8 +28,6 @@ public final class PlayerSpawnMixin {
 
     @Mixin(PlayerList.class)
     public static abstract class MixedPlayerList {
-
-        @Shadow @Final private static Logger LOGGER;
 
         @Inject(method = "func_232644_a_",
                 at = @At(
@@ -53,13 +49,14 @@ public final class PlayerSpawnMixin {
                                              ServerPlayerEntity newPlayer) {
             if (endConquered) return;
             Origin origin = Origin.getOrigin(newPlayer);
-            if (origin != null && origin.hasProperty(PhoenixOriginType.Property.RESPAWN_AT_DEATH)) {
-                tryRespawnAtDeath(oldPlayer, newPlayer);
+            if (origin != null && origin.hasLabel(PhoenixOriginType.Label.RESPAWN_AT_DEATH)) {
+                originsPlus$tryRespawnAtDeath(oldPlayer, newPlayer);
             }
         }
 
-        private static void tryRespawnAtDeath(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer) {
-            if (shouldNotRespawn(oldPlayer)) return;
+        @Unique
+        private static void originsPlus$tryRespawnAtDeath(ServerPlayerEntity oldPlayer, ServerPlayerEntity newPlayer) {
+            if (originsPlus$shouldNotRespawn(oldPlayer)) return;
             Vector3d deathPos = oldPlayer.getPositionVec();
             ServerWorld deathWorld = oldPlayer.getServerWorld();
 
@@ -70,11 +67,13 @@ public final class PlayerSpawnMixin {
             }
         }
 
-        private static boolean shouldNotRespawn(ServerPlayerEntity oldPlayer) {
-            return isAboveVoid(oldPlayer);
+        @Unique
+        private static boolean originsPlus$shouldNotRespawn(ServerPlayerEntity oldPlayer) {
+            return originsPlus$isAboveVoid(oldPlayer);
         }
 
-        private static boolean isAboveVoid(PlayerEntity player) {
+        @Unique
+        private static boolean originsPlus$isAboveVoid(PlayerEntity player) {
             World world = player.world;
             for (int searchOffset = 0; ; searchOffset++) {
                 BlockPos searchPos = player.getPosition().down(searchOffset);
@@ -91,7 +90,7 @@ public final class PlayerSpawnMixin {
                         ordinal = 0))
         protected void trySendInvalidSpawnPacket(ServerPlayNetHandler connection, IPacket<?> packet) {
             Origin origin = Origin.getOrigin(connection.player);
-            if (origin == null || !origin.hasProperty(PhoenixOriginType.Property.RESPAWN_AT_DEATH)) {
+            if (origin == null || !origin.hasLabel(PhoenixOriginType.Label.RESPAWN_AT_DEATH)) {
                 connection.sendPacket(packet);
             }
         }

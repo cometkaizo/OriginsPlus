@@ -2,7 +2,7 @@ package me.cometkaizo.origins.origin;
 
 import me.cometkaizo.origins.Main;
 import me.cometkaizo.origins.network.Packets;
-import me.cometkaizo.origins.network.S2CSlimicianAction;
+import me.cometkaizo.origins.network.S2CEnumAction;
 import me.cometkaizo.origins.network.S2CSlimicianSynchronize;
 import me.cometkaizo.origins.origin.client.ClientSlimicianOriginType;
 import me.cometkaizo.origins.property.SpeciesProperty;
@@ -39,11 +39,11 @@ public class SlimicianOriginType extends AbstractOriginType {
     public static final DataKey<Boolean> SHOULD_UPDATE = DataKey.create(Boolean.class);
     public static final int MAX_SHRINK_COUNT = 2;
     public static final double SIZE_SHRINK_FACTOR = 0.5;
-
-    public static final SpeciesProperty SLIME_SPECIES = new SpeciesProperty.Builder()
-            .setMobSpecies(EntityType.SLIME)
-            .setRallyRadius(SLIME_AGGRO_RANGE).build();
     public static final float BOUNCE_SUPPRESS_FALL_DAMAGE_AMP = 0.5F;
+
+    public static final SpeciesProperty SLIME_SPECIES = SpeciesProperty.Builder
+            .withMobSpecies(EntityType.SLIME)
+            .setRallyRadius(SLIME_AGGRO_RANGE).build();
 
 
     public enum Timer implements TimeTracker.Timer {
@@ -99,8 +99,8 @@ public class SlimicianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onFirstActivate(Origin origin) {
-        super.onFirstActivate(origin);
+    public void init(Origin origin) {
+        super.init(origin);
         origin.getTypeData().registerSaved(SHRINK_COUNT, 0, new ResourceLocation(Main.MOD_ID, SHRINK_COUNT_KEY));
         origin.getTypeData().register(BOUNCED_THIS_TICK, false);
         origin.getTypeData().register(SHOULD_UPDATE, true);
@@ -109,8 +109,8 @@ public class SlimicianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onActivate(Origin origin) {
-        super.onActivate(origin);
+    public void activate(Origin origin) {
+        super.activate(origin);
         if (origin.isServerSide()) sendSyncShrinkCountPacket(origin);
         updateAttributes(origin);
     }
@@ -164,8 +164,8 @@ public class SlimicianOriginType extends AbstractOriginType {
     }
 
     @Override
-    public void onDeactivate(Origin origin) {
-        super.onDeactivate(origin);
+    public void deactivate(Origin origin) {
+        super.deactivate(origin);
         PlayerEntity player = origin.getPlayer();
         AttributeUtils.setAttribute(player, Attributes.MAX_HEALTH, Attributes.MAX_HEALTH.getDefaultValue());
         AttributeUtils.setAttribute(player, ForgeMod.REACH_DISTANCE.get(), ForgeMod.REACH_DISTANCE.get().getDefaultValue());
@@ -232,11 +232,12 @@ public class SlimicianOriginType extends AbstractOriginType {
 
     private void onPlayerRespawn(Origin origin) {
         resetShrinkCount(origin);
+        origin.getPlayer().setHealth(origin.getPlayer().getMaxHealth());
         if (origin.isServerSide()) sendRespawnPacket(origin.getPlayer());
     }
 
     private static void sendRespawnPacket(PlayerEntity player) {
-        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSlimicianAction(player, Action.RESPAWN));
+        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CEnumAction(player, Action.RESPAWN));
     }
 
     private void onPlayerHurt(LivingHurtEvent event, Origin origin) {
@@ -258,7 +259,7 @@ public class SlimicianOriginType extends AbstractOriginType {
     }
 
     private static void sendBeforeDeathPacket(PlayerEntity player) {
-        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CSlimicianAction(player, Action.BEFORE_DEATH));
+        Packets.CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CEnumAction(player, Action.BEFORE_DEATH));
     }
 
     private void beforeDeath(LivingDamageEvent event, Origin origin) {
